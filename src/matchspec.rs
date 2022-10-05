@@ -12,6 +12,7 @@ use nom::{
 use std::fmt::Debug;
 use std::str::FromStr;
 
+/// Enum that is used to group 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Selector {
     GreaterThan(String),
