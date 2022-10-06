@@ -12,33 +12,33 @@ use nom::{
 use std::fmt::Debug;
 use std::str::FromStr;
 
-/// Enum that is used to group 
+/// Enum that is used to group
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Selector {
-    GreaterThan(String),
-    GreaterThanOrEqualTo(String),
-    LessThan(String),
-    LessThanOrEqualTo(String),
-    NotEqualTo(String),
-    EqualTo(String),
+    GreaterThan,
+    GreaterThanOrEqualTo,
+    LessThan,
+    LessThanOrEqualTo,
+    NotEqualTo,
+    EqualTo,
 }
 
-impl From<(&str, &str)> for Selector {
-    fn from(pair: (&str, &str)) -> Self {
-        match pair.0 {
-            ">" => Self::GreaterThan(String::from(pair.1)),
-            ">=" => Self::GreaterThanOrEqualTo(String::from(pair.1)),
-            "<" => Self::LessThan(String::from(pair.1)),
-            "<=" => Self::LessThanOrEqualTo(String::from(pair.1)),
-            "!=" => Self::NotEqualTo(String::from(pair.1)),
-            _ => Self::EqualTo(String::from(pair.1)),
+impl From<&str> for Selector {
+    fn from(value: &str) -> Self {
+        match value {
+            ">" => Self::GreaterThan,
+            ">=" => Self::GreaterThanOrEqualTo,
+            "<" => Self::LessThan,
+            "<=" => Self::LessThanOrEqualTo,
+            "!=" => Self::NotEqualTo,
+            _ => Self::EqualTo,
         }
     }
 }
 
 /// Tests for alphanumeric with dashes, underscores, or periods
 /// ```
-/// use conda_matchspec::matchspec::is_alphanumeric_with_dashes;
+/// use matchspec::matchspec::is_alphanumeric_with_dashes;
 ///
 /// assert!("_123abc".chars().all(is_alphanumeric_with_dashes));
 /// ```
@@ -48,7 +48,7 @@ pub fn is_alphanumeric_with_dashes(c: char) -> bool {
 
 /// Tests for alphanumeric with dashes, underscores, or periods
 /// ```
-/// use conda_matchspec::matchspec::is_alphanumeric_with_dashes_or_period;
+/// use matchspec::matchspec::is_alphanumeric_with_dashes_or_period;
 ///
 ///  assert!("_.123abc".chars().all(is_alphanumeric_with_dashes_or_period));
 ///  assert!("conda-forge".chars().all(is_alphanumeric_with_dashes_or_period));
@@ -78,19 +78,21 @@ pub struct MatchSpec {
     pub subdir: Option<String>,
     pub namespace: Option<String>,
     pub package: String,
-    pub version: Option<Selector>,
-    pub key_value_pairs: Vec<(String, Selector)>,
+    pub selector: Option<Selector>,
+    pub version: Option<String>,
+    pub key_value_pairs: Vec<(String, Selector, String)>,
 }
 
 impl MatchSpec {
     /// Create a MatchSpec using only package and selector
-    fn simple(package: &str, version: Selector) -> Self {
+    fn simple(package: &str, selector: Selector, version: &str) -> Self {
         MatchSpec {
             channel: None,
             subdir: None,
             namespace: None,
             package: String::from(package),
-            version: Some(version),
+            selector: Some(selector),
+            version: Some(String::from(version)),
             key_value_pairs: vec![],
         }
     }
@@ -120,7 +122,7 @@ type MatchSpecTuple<'a> = (
 /// | ~=       | [Compatible Release](https://peps.python.org/pep-0440/#compatible-release) |
 ///
 /// ```
-///  use conda_matchspec::matchspec::selector_parser;
+///  use matchspec::matchspec::selector_parser;
 ///
 ///  assert_eq!(selector_parser("!=2.9.1"), Ok(("2.9.1", "!=")));
 ///  assert_eq!(selector_parser(">2.9.1"), Ok(("2.9.1", ">")));
@@ -145,7 +147,7 @@ pub fn selector_parser(s: &str) -> IResult<&str, &str> {
 
 /// Parses the package name
 /// ```
-///  use conda_matchspec::matchspec::name_parser;
+///  use matchspec::matchspec::name_parser;
 ///
 ///  assert_eq!(name_parser("tensorflow >=2.9.1"), Ok((" >=2.9.1", "tensorflow")));
 ///  assert_eq!(name_parser("tensorflow>=2.9.1"), Ok((">=2.9.1", "tensorflow")));
@@ -156,7 +158,7 @@ pub fn name_parser(s: &str) -> IResult<&str, &str> {
 
 /// Parses the package version
 /// ```
-///  use conda_matchspec::matchspec::version_parser;
+///  use matchspec::matchspec::version_parser;
 ///
 ///  assert_eq!(version_parser("2.9.1"), Ok(("", "2.9.1")));
 ///  assert_eq!(version_parser("2.9.1[subdir=linux]"), Ok(("[subdir=linux]", "2.9.1")));
@@ -170,7 +172,11 @@ pub fn version_parser(s: &str) -> IResult<&str, &str> {
 /// `(channel(/subdir):(namespace):)name(version(build))[key1=value1,key2=value2]`
 fn parse_matchspec(s: &str) -> IResult<&str, MatchSpecTuple, NomError<&str>> {
     let channel_parser = terminated(take_while(is_alphanumeric_with_dashes), one_of(":/"));
-    let subdir_parser = delimited(char(':'), take_while(is_alphanumeric_with_dashes), char('/'));
+    let subdir_parser = delimited(
+        char(':'),
+        take_while(is_alphanumeric_with_dashes),
+        char('/'),
+    );
     let namespace_parser = delimited(char(':'), alphanumeric1, char(':'));
     let key_value_pair_parser = tuple((alphanumeric1, selector_parser, is_not("],")));
     let keys_vec_parser = delimited(char('['), many1(key_value_pair_parser), char(']'));
@@ -191,24 +197,27 @@ impl FromStr for MatchSpec {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let result: Result<(&str, MatchSpec), NomError<&str>> = map_res(
             parse_matchspec,
-            |(channel, subdir, namespace, package, selector, v, keys)| {
-                // It is valid to have only a package name, so check to make sure the version is set
-                // This also eliminates the invalid selector is set but version is not path.
-                let version: Option<Selector> = if selector.is_some() && v.is_some() {
-                    let s: Selector = (selector.unwrap(), v.unwrap()).into();
-                    Some(s)
-                } else {
-                    None
+            |(channel, subdir, namespace, package, s, v, keys)| {
+                // Make sure an empty "" is, None, but convert to String otherwise.
+                let version: Option<String> = match v {
+                    Some("") => None,
+                    Some(value) => Some(value.to_string()),
+                    _ => None
                 };
+                let selector: Option<Selector> = s.map(Selector::from);
 
-                // Convert the key_value_pairs into (String, Selector) pairs.
+                // Convert the key_value_pairs into (String, Selector, String) tuples.
                 // I'm not sure its possible to have the full selector set, but this models it in a
                 // good way.
-                let key_value_pairs: Vec<(String, Selector)> = keys
+                let key_value_pairs: Vec<(String, Selector, String)> = keys
                     .map(|vec: Vec<(&str, &str, &str)>| {
                         vec.iter()
                             .map(|(key, selector, value)| {
-                                (String::from(*key), Selector::from((*selector, *value)))
+                                (
+                                    String::from(*key),
+                                    Selector::from(*selector),
+                                    String::from(*value),
+                                )
                             })
                             .collect()
                     })
@@ -219,6 +228,7 @@ impl FromStr for MatchSpec {
                     subdir: subdir.map(String::from),
                     namespace: namespace.map(String::from),
                     package: package.into(),
+                    selector,
                     version,
                     key_value_pairs,
                 })
@@ -242,7 +252,7 @@ mod test {
 
     #[test]
     fn simple_spec_creation() {
-        let spec = MatchSpec::simple("tensorflow", Selector::GreaterThan("2.9.1".to_string()));
+        let spec = MatchSpec::simple("tensorflow", Selector::GreaterThan, "2.9.1");
         assert_eq!(spec.package, String::from("tensorflow"));
         assert!(spec.namespace.is_none());
         assert!(spec.key_value_pairs.is_empty());
@@ -316,10 +326,8 @@ mod test {
 
             let ms = result.unwrap();
             assert_eq!(ms.package, "tensorflow");
-            assert_eq!(
-                ms.version,
-                Some(Selector::GreaterThanOrEqualTo(String::from("2.9.1")))
-            );
+            assert_eq!(ms.version, Some("2.9.1".to_string()));
+            assert_eq!(ms.selector, Some(Selector::GreaterThanOrEqualTo));
         }
 
         #[test]
@@ -342,7 +350,8 @@ mod test {
             assert_eq!(ms.subdir, None);
             assert_eq!(ms.namespace, None);
             assert_eq!(ms.package, "tensorflow");
-            assert_eq!(ms.version, Some(Selector::GreaterThan("1".to_string())));
+            assert_eq!(ms.version, Some("1".to_string()));
+            assert_eq!(ms.selector, Some(Selector::GreaterThan));
             assert!(ms.key_value_pairs.is_empty());
         }
 
@@ -355,11 +364,16 @@ mod test {
             assert_eq!(ms.subdir, None);
             assert_eq!(ms.namespace, None);
             assert_eq!(ms.package, "tensorflow");
-            assert_eq!(ms.version, Some(Selector::GreaterThan("1".to_string())));
+            assert_eq!(ms.version, Some("1".to_string()));
+            assert_eq!(ms.selector, Some(Selector::GreaterThan));
             assert!(ms.key_value_pairs.len() == 1);
             assert_eq!(
                 ms.key_value_pairs.get(0),
-                Some(&("subdir".to_string(), Selector::NotEqualTo("win-64".to_string())))
+                Some(&(
+                    "subdir".to_string(),
+                    Selector::NotEqualTo,
+                    "win-64".to_string()
+                ))
             );
         }
 
@@ -376,7 +390,11 @@ mod test {
             assert!(ms.key_value_pairs.len() == 1);
             assert_eq!(
                 ms.key_value_pairs.get(0),
-                Some(&("subdir".to_string(), Selector::EqualTo("win-64".to_string())))
+                Some(&(
+                    "subdir".to_string(),
+                    Selector::EqualTo,
+                    "win-64".to_string()
+                ))
             );
         }
 
@@ -394,7 +412,11 @@ mod test {
             assert!(ms.key_value_pairs.len() == 1);
             assert_eq!(
                 ms.key_value_pairs.get(0),
-                Some(&("subdir".to_string(), Selector::EqualTo("win-64".to_string())))
+                Some(&(
+                    "subdir".to_string(),
+                    Selector::EqualTo,
+                    "win-64".to_string()
+                ))
             );
         }
     }
