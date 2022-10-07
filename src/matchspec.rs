@@ -1,7 +1,7 @@
 use nom::error::Error as NomError;
 use nom::{
     branch::alt,
-    bytes::complete::{is_not, tag, take_while},
+    bytes::complete::{tag, take_while},
     character::complete::{alphanumeric1, char, multispace0, one_of},
     character::{is_alphabetic, is_digit},
     combinator::{map_res, opt, peek},
@@ -81,21 +81,6 @@ pub struct MatchSpec {
     pub selector: Option<Selector>,
     pub version: Option<String>,
     pub key_value_pairs: Vec<(String, Selector, String)>,
-}
-
-impl MatchSpec {
-    /// Create a MatchSpec using only package and selector
-    fn simple(package: &str, selector: Selector, version: &str) -> Self {
-        MatchSpec {
-            channel: None,
-            subdir: None,
-            namespace: None,
-            package: String::from(package),
-            selector: Some(selector),
-            version: Some(String::from(version)),
-            key_value_pairs: vec![],
-        }
-    }
 }
 
 /// Simple type alias to make returning this ridiculous thing easier.
@@ -178,18 +163,41 @@ pub fn channel_parser(s: &str) -> IResult<&str, &str> {
     terminated(take_while(is_alphanumeric_with_dashes), peek(one_of(":/")))(s)
 }
 
+/// Parses a single key_value_pair
+/// ```
+///  use matchspec::matchspec::key_value_pair_parser;
+///
+///  assert_eq!(key_value_pair_parser("subdir=linux-64"), Ok(("", ("subdir", "=", "linux-64"))));
+/// ```
+pub fn key_value_pair_parser(s: &str) -> IResult<&str, (&str, &str, &str)> {
+    let value_parser = delimited(
+        opt(one_of("'\"")),
+        take_while(is_alphanumeric_with_dashes),
+        opt(one_of("'\"")),
+    );
+    delimited(
+        multispace0,
+        tuple((alphanumeric1, selector_parser, value_parser)),
+        multispace0,
+    )(s)
+}
+
 /// Parses the whole matchspec using Nom, returing a `MatchSpecTuple`
 /// Assumes this format:
 /// `(channel(/subdir):(namespace):)name(version(build))[key1=value1,key2=value2]`
 fn parse_matchspec(s: &str) -> IResult<&str, MatchSpecTuple, NomError<&str>> {
     let subdir_parser = delimited(
-        char(':'),
-        take_while(is_alphanumeric_with_dashes),
         char('/'),
+        take_while(is_alphanumeric_with_dashes),
+        char(':'),
     );
-    let namespace_parser = delimited(char(':'), alphanumeric1, char(':'));
-    let key_value_pair_parser = tuple((alphanumeric1, selector_parser, is_not("],")));
-    let keys_vec_parser = delimited(char('['), many1(key_value_pair_parser), char(']'));
+
+    let namespace_parser = terminated(alphanumeric1, char(':'));
+    let keys_vec_parser = delimited(
+        char('['),
+        many1(terminated(key_value_pair_parser, opt(char(',')))),
+        char(']'),
+    );
 
     tuple((
         opt(channel_parser),
@@ -258,16 +266,6 @@ impl FromStr for MatchSpec {
 
 #[cfg(test)]
 mod test {
-    use super::*;
-
-    #[test]
-    fn simple_spec_creation() {
-        let spec = MatchSpec::simple("tensorflow", Selector::GreaterThan, "2.9.1");
-        assert_eq!(spec.package, String::from("tensorflow"));
-        assert!(spec.namespace.is_none());
-        assert!(spec.key_value_pairs.is_empty());
-    }
-
     mod component_parsers {
         use crate::matchspec::*;
         #[test]
@@ -334,6 +332,32 @@ mod test {
                 Ok(("[subdir=linux]", "2.9.1"))
             );
         }
+
+        #[test]
+        fn test_key_value_parser() {
+            // Ensure we handle quoting
+            assert_eq!(
+                key_value_pair_parser("subdir = 'linux-64'"),
+                Ok(("", ("subdir", "=", "linux-64"))),
+            );
+
+            assert_eq!(
+                key_value_pair_parser("subdir = \"linux-64\""),
+                Ok(("", ("subdir", "=", "linux-64"))),
+            );
+
+            // Also work without quoting
+            assert_eq!(
+                key_value_pair_parser("subdir = linux-64"),
+                Ok(("", ("subdir", "=", "linux-64"))),
+            );
+
+            // Whitespace shouldn't matter
+            assert_eq!(
+                key_value_pair_parser("subdir=linux-64"),
+                Ok(("", ("subdir", "=", "linux-64"))),
+            );
+        }
     }
 
     mod final_parser {
@@ -389,7 +413,7 @@ mod test {
             assert_eq!(ms.package, "tensorflow");
             assert_eq!(ms.version, Some("1".to_string()));
             assert_eq!(ms.selector, Some(Selector::GreaterThan));
-            assert!(ms.key_value_pairs.len() == 1);
+            assert_eq!(ms.key_value_pairs.len(), 1);
             assert_eq!(
                 ms.key_value_pairs.get(0),
                 Some(&(
@@ -410,7 +434,7 @@ mod test {
             assert_eq!(ms.namespace, None);
             assert_eq!(ms.package, "tensorflow");
             assert_eq!(ms.version, None);
-            assert!(ms.key_value_pairs.len() == 1);
+            assert_eq!(ms.key_value_pairs.len(), 1);
             assert_eq!(
                 ms.key_value_pairs.get(0),
                 Some(&(
@@ -424,21 +448,27 @@ mod test {
         #[test]
         fn everything_specified() {
             let result: Result<MatchSpec, nom::error::Error<String>> =
-                "conda-forge/linux-64:UNUSED:tensorflow>2.9.1[license=GPL]".parse();
+                "conda-forge/linux-64:UNUSED:tensorflow>2.9.1[license=GPL, subdir=linux-64]"
+                    .parse();
 
             let ms = result.unwrap();
             assert_eq!(ms.channel, Some("conda-forge".to_string()));
             assert_eq!(ms.subdir, Some("linux-64".to_string()));
             assert_eq!(ms.namespace, Some("UNUSED".to_string()));
             assert_eq!(ms.package, "tensorflow".to_string());
-            assert_eq!(ms.version, None);
-            assert!(ms.key_value_pairs.len() == 1);
+            assert_eq!(ms.version, Some("2.9.1".to_string()));
+            assert_eq!(ms.key_value_pairs.len(), 2);
             assert_eq!(
                 ms.key_value_pairs.get(0),
+                Some(&("license".to_string(), Selector::EqualTo, "GPL".to_string()))
+            );
+
+            assert_eq!(
+                ms.key_value_pairs.get(1),
                 Some(&(
                     "subdir".to_string(),
                     Selector::EqualTo,
-                    "win-64".to_string()
+                    "linux-64".to_string()
                 ))
             );
         }
