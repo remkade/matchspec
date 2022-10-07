@@ -4,7 +4,7 @@ use nom::{
     bytes::complete::{is_not, tag, take_while},
     character::complete::{alphanumeric1, char, multispace0, one_of},
     character::{is_alphabetic, is_digit},
-    combinator::{map_res, opt},
+    combinator::{map_res, opt, peek},
     multi::many1,
     sequence::{delimited, terminated, tuple},
     Finish, IResult,
@@ -167,11 +167,21 @@ pub fn version_parser(s: &str) -> IResult<&str, &str> {
     take_while(is_alphanumeric_with_dashes_or_period)(s)
 }
 
+/// Parses the channel
+/// ```
+///  use matchspec::matchspec::channel_parser;
+///
+///  assert_eq!(channel_parser("conda-forge/linux-64::tensorflow"), Ok(("/linux-64::tensorflow", "conda-forge")));
+///  assert_eq!(channel_parser("main::python"), Ok(("::python", "main")));
+/// ```
+pub fn channel_parser(s: &str) -> IResult<&str, &str> {
+    terminated(take_while(is_alphanumeric_with_dashes), peek(one_of(":/")))(s)
+}
+
 /// Parses the whole matchspec using Nom, returing a `MatchSpecTuple`
 /// Assumes this format:
 /// `(channel(/subdir):(namespace):)name(version(build))[key1=value1,key2=value2]`
 fn parse_matchspec(s: &str) -> IResult<&str, MatchSpecTuple, NomError<&str>> {
-    let channel_parser = terminated(take_while(is_alphanumeric_with_dashes), one_of(":/"));
     let subdir_parser = delimited(
         char(':'),
         take_while(is_alphanumeric_with_dashes),
@@ -202,7 +212,7 @@ impl FromStr for MatchSpec {
                 let version: Option<String> = match v {
                     Some("") => None,
                     Some(value) => Some(value.to_string()),
-                    _ => None
+                    _ => None,
                 };
                 let selector: Option<Selector> = s.map(Selector::from);
 
@@ -260,6 +270,19 @@ mod test {
 
     mod component_parsers {
         use crate::matchspec::*;
+        #[test]
+        fn test_channel_parser() {
+            assert_eq!(
+                channel_parser("conda-forge::tensorflow >=2.9.1"),
+                Ok(("::tensorflow >=2.9.1", "conda-forge"))
+            );
+
+            assert_eq!(
+                channel_parser("main/linux-64::tensorflow >=2.9.1"),
+                // Having this space here is ok because the selector_parser handles whitespace
+                Ok(("/linux-64::tensorflow >=2.9.1", "main"))
+            );
+        }
 
         #[test]
         fn test_name_parser() {
