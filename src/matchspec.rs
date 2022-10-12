@@ -78,12 +78,12 @@ pub fn is_alphanumeric_with_dashes_or_period(c: char) -> bool {
 #[derive(Debug, Clone, Default)]
 pub struct MatchSpec<S>
 where
-    S: AsRef<str>,
+    S: AsRef<str> + PartialEq + PartialOrd,
 {
     pub channel: Option<S>,
     pub subdir: Option<S>,
     pub namespace: Option<S>,
-    pub package: String,
+    pub package: S,
     pub selector: Option<Selector>,
     pub version: Option<S>,
     pub key_value_pairs: Vec<(S, Selector, S)>,
@@ -191,6 +191,7 @@ pub fn key_value_pair_parser(s: &str) -> IResult<&str, (&str, &str, &str)> {
 /// Parses the whole matchspec using Nom, returing a `MatchSpecTuple`
 /// Assumes this format:
 /// `(channel(/subdir):(namespace):)name(version(build))[key1=value1,key2=value2]`
+/// Instead of using this directly please use the `"".parse()` style provided by FromStr
 fn parse_matchspec(s: &str) -> IResult<&str, MatchSpecTuple<&str>, NomError<&str>> {
     let subdir_parser = delimited(
         char('/'),
@@ -268,6 +269,30 @@ impl FromStr for MatchSpec<String> {
                 code,
             }),
         }
+    }
+}
+
+impl<S: AsRef<str> + PartialOrd + PartialEq<str>> MatchSpec<S> {
+    fn is_package_match(&self, package: S) -> bool {
+        self.package == package
+    }
+
+    fn is_version_match(&self, version: S) -> bool {
+        match self.selector {
+            // No version selector, so no version, therefore yes it matches
+            None => true,
+            // Version Selector exists, so lets check it
+            Some(Selector::EqualTo) => &version == self.version.as_ref().unwrap(),
+            Some(Selector::LessThan) => &version < self.version.as_ref().unwrap(),
+            Some(Selector::LessThanOrEqualTo) => &version <= self.version.as_ref().unwrap(),
+            Some(Selector::GreaterThan) => &version > self.version.as_ref().unwrap(),
+            Some(Selector::GreaterThanOrEqualTo) => &version >= self.version.as_ref().unwrap(),
+            Some(Selector::NotEqualTo) => &version != self.version.as_ref().unwrap(),
+        }
+    }
+
+    fn is_package_version_match(&self, package: S, version: S) -> bool {
+        self.package == package && self.is_version_match(version)
     }
 }
 
@@ -480,6 +505,27 @@ mod test {
                     "linux-64".to_string()
                 ))
             );
+        }
+    }
+
+    #[cfg(test)]
+    mod matching {
+        use crate::matchspec::*;
+
+        #[test]
+        fn package_only() {
+            let ms: MatchSpec<String> = "tensorflow".parse().unwrap();
+
+            assert!(ms.is_package_match("tensorflow".to_string()));
+            assert!(!ms.is_package_match("pytorch".to_string()));
+        }
+
+        #[test]
+        fn package_and_version_only() {
+            let ms: MatchSpec<String> = "tensorflow>1.9.2".parse().unwrap();
+
+            assert!(ms.is_package_version_match("tensorflow".to_string(), "1.9.3".to_string()));
+            assert!(!ms.is_package_version_match("tensorflow".to_string(), "1.9.0".to_string()));
         }
     }
 }
