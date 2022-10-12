@@ -23,9 +23,12 @@ pub enum Selector {
     EqualTo,
 }
 
-impl From<&str> for Selector {
-    fn from(value: &str) -> Self {
-        match value {
+impl<S> From<S> for Selector
+where
+    S: AsRef<str>,
+{
+    fn from(value: S) -> Self {
+        match value.as_ref() {
             ">" => Self::GreaterThan,
             ">=" => Self::GreaterThanOrEqualTo,
             "<" => Self::LessThan,
@@ -73,25 +76,28 @@ pub fn is_alphanumeric_with_dashes_or_period(c: char) -> bool {
 /// Full MatchSpec documentation is found in the code [here](https://github.com/conda/conda/blob/main/conda/models/match_spec.py)
 /// and [here](https://conda.io/projects/conda-build/en/latest/resources/package-spec.html#build-version-spec) in the spec
 #[derive(Debug, Clone, Default)]
-pub struct MatchSpec {
-    pub channel: Option<String>,
-    pub subdir: Option<String>,
-    pub namespace: Option<String>,
+pub struct MatchSpec<S>
+where
+    S: AsRef<str>,
+{
+    pub channel: Option<S>,
+    pub subdir: Option<S>,
+    pub namespace: Option<S>,
     pub package: String,
     pub selector: Option<Selector>,
-    pub version: Option<String>,
-    pub key_value_pairs: Vec<(String, Selector, String)>,
+    pub version: Option<S>,
+    pub key_value_pairs: Vec<(S, Selector, S)>,
 }
 
 /// Simple type alias to make returning this ridiculous thing easier.
-type MatchSpecTuple<'a> = (
-    Option<&'a str>,
-    Option<&'a str>,
-    Option<&'a str>,
-    &'a str,
-    Option<&'a str>,
-    Option<&'a str>,
-    Option<Vec<(&'a str, &'a str, &'a str)>>,
+type MatchSpecTuple<S> = (
+    Option<S>,
+    Option<S>,
+    Option<S>,
+    S,
+    Option<S>,
+    Option<S>,
+    Option<Vec<(S, S, S)>>,
 );
 
 /// Parses a version selector. Possible values:
@@ -185,7 +191,7 @@ pub fn key_value_pair_parser(s: &str) -> IResult<&str, (&str, &str, &str)> {
 /// Parses the whole matchspec using Nom, returing a `MatchSpecTuple`
 /// Assumes this format:
 /// `(channel(/subdir):(namespace):)name(version(build))[key1=value1,key2=value2]`
-fn parse_matchspec(s: &str) -> IResult<&str, MatchSpecTuple, NomError<&str>> {
+fn parse_matchspec(s: &str) -> IResult<&str, MatchSpecTuple<&str>, NomError<&str>> {
     let subdir_parser = delimited(
         char('/'),
         take_while(is_alphanumeric_with_dashes),
@@ -210,21 +216,22 @@ fn parse_matchspec(s: &str) -> IResult<&str, MatchSpecTuple, NomError<&str>> {
     ))(s)
 }
 
-impl FromStr for MatchSpec {
+impl FromStr for MatchSpec<String> {
     type Err = NomError<String>;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let result: Result<(&str, MatchSpec), NomError<&str>> = map_res(
+        let result = map_res(
             parse_matchspec,
             |(channel, subdir, namespace, package, s, v, keys)| {
                 // Make sure an empty "" is, None, but convert to String otherwise.
-                let version: Option<String> = match v {
+                let version = match v {
                     Some("") => None,
-                    Some(value) => Some(value.to_string()),
+                    Some(value) => Some(value),
                     _ => None,
                 };
+                // Convert inner into selector
                 let selector: Option<Selector> = s.map(Selector::from);
 
-                // Convert the key_value_pairs into (String, Selector, String) tuples.
+                // Convert the key_value_pairs into (S, Selector, S) tuples.
                 // I'm not sure its possible to have the full selector set, but this models it in a
                 // good way.
                 let key_value_pairs: Vec<(String, Selector, String)> = keys
@@ -232,22 +239,22 @@ impl FromStr for MatchSpec {
                         vec.iter()
                             .map(|(key, selector, value)| {
                                 (
-                                    String::from(*key),
+                                    key.to_string(),
                                     Selector::from(*selector),
-                                    String::from(*value),
+                                    value.to_string(),
                                 )
                             })
                             .collect()
                     })
                     .unwrap_or_default();
 
-                Ok::<MatchSpec, Self::Err>(MatchSpec {
+                Ok::<MatchSpec<String>, Self::Err>(MatchSpec {
                     channel: channel.map(String::from),
                     subdir: subdir.map(String::from),
                     namespace: namespace.map(String::from),
                     package: package.into(),
                     selector,
-                    version,
+                    version: version.map(String::from),
                     key_value_pairs,
                 })
             },
@@ -365,7 +372,8 @@ mod test {
 
         #[test]
         fn simple_package_and_version() {
-            let result: Result<MatchSpec, nom::error::Error<String>> = "tensorflow>=2.9.1".parse();
+            let result: Result<MatchSpec<String>, nom::error::Error<String>> =
+                "tensorflow>=2.9.1".parse();
 
             if result.is_err() {
                 assert_eq!("", format!("Nom Error: {:?}", result));
@@ -379,7 +387,7 @@ mod test {
 
         #[test]
         fn package_only() {
-            let result: Result<MatchSpec, nom::error::Error<String>> = "tensorflow".parse();
+            let result: Result<MatchSpec<String>, nom::error::Error<String>> = "tensorflow".parse();
 
             let ms = result.unwrap();
             assert_eq!(ms.subdir, None);
@@ -391,7 +399,8 @@ mod test {
 
         #[test]
         fn package_and_version_only() {
-            let result: Result<MatchSpec, nom::error::Error<String>> = "tensorflow>1".parse();
+            let result: Result<MatchSpec<String>, nom::error::Error<String>> =
+                "tensorflow>1".parse();
 
             let ms = result.unwrap();
             assert_eq!(ms.subdir, None);
@@ -404,7 +413,7 @@ mod test {
 
         #[test]
         fn package_and_version_with_key_values() {
-            let result: Result<MatchSpec, nom::error::Error<String>> =
+            let result: Result<MatchSpec<String>, nom::error::Error<String>> =
                 "tensorflow>1[subdir!=win-64]".parse();
 
             let ms = result.unwrap();
@@ -419,14 +428,14 @@ mod test {
                 Some(&(
                     "subdir".to_string(),
                     Selector::NotEqualTo,
-                    "win-64".to_string()
+                    "win-64".to_string(),
                 ))
             );
         }
 
         #[test]
         fn package_only_with_key_values() {
-            let result: Result<MatchSpec, nom::error::Error<String>> =
+            let result: Result<MatchSpec<String>, nom::error::Error<String>> =
                 "tensorflow[subdir=win-64]".parse();
 
             let ms = result.unwrap();
@@ -440,14 +449,14 @@ mod test {
                 Some(&(
                     "subdir".to_string(),
                     Selector::EqualTo,
-                    "win-64".to_string()
+                    "win-64".to_string(),
                 ))
             );
         }
 
         #[test]
         fn everything_specified() {
-            let result: Result<MatchSpec, nom::error::Error<String>> =
+            let result: Result<MatchSpec<String>, nom::error::Error<String>> =
                 "conda-forge/linux-64:UNUSED:tensorflow>2.9.1[license=GPL, subdir=linux-64]"
                     .parse();
 
@@ -455,7 +464,7 @@ mod test {
             assert_eq!(ms.channel, Some("conda-forge".to_string()));
             assert_eq!(ms.subdir, Some("linux-64".to_string()));
             assert_eq!(ms.namespace, Some("UNUSED".to_string()));
-            assert_eq!(ms.package, "tensorflow".to_string());
+            assert_eq!(ms.package, "tensorflow");
             assert_eq!(ms.version, Some("2.9.1".to_string()));
             assert_eq!(ms.key_value_pairs.len(), 2);
             assert_eq!(
