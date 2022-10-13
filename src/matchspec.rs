@@ -39,6 +39,19 @@ where
     }
 }
 
+impl Selector {
+    fn boolean_operator(&self) -> fn(&str, &str) -> bool {
+        match self {
+            Selector::EqualTo => str::eq,
+            Selector::NotEqualTo => str::ne,
+            Selector::LessThan => str::lt,
+            Selector::LessThanOrEqualTo => str::le,
+            Selector::GreaterThan => str::gt,
+            Selector::GreaterThanOrEqualTo => str::ge,
+        }
+    }
+}
+
 /// Tests for alphanumeric with dashes, underscores, or periods
 /// ```
 /// use matchspec::matchspec::is_alphanumeric_with_dashes;
@@ -273,25 +286,33 @@ impl FromStr for MatchSpec<String> {
 }
 
 impl<S: AsRef<str> + PartialOrd + PartialEq<str>> MatchSpec<S> {
-    fn is_package_match(&self, package: S) -> bool {
+    /// Does simple &str equality matching against the package name
+    /// ```
+    /// use ::matchspec::*;
+    ///
+    /// let ms: MatchSpec<String> = "openssl>1.1.1a".parse().unwrap();
+    /// assert!(ms.is_package_match("openssl".to_string()));
+    /// ```
+    pub fn is_package_match(&self, package: S) -> bool {
         self.package == package
     }
 
-    fn is_version_match(&self, version: S) -> bool {
-        match self.selector {
-            // No version selector, so no version, therefore yes it matches
-            None => true,
-            // Version Selector exists, so lets check it
-            Some(Selector::EqualTo) => &version == self.version.as_ref().unwrap(),
-            Some(Selector::LessThan) => &version < self.version.as_ref().unwrap(),
-            Some(Selector::LessThanOrEqualTo) => &version <= self.version.as_ref().unwrap(),
-            Some(Selector::GreaterThan) => &version > self.version.as_ref().unwrap(),
-            Some(Selector::GreaterThanOrEqualTo) => &version >= self.version.as_ref().unwrap(),
-            Some(Selector::NotEqualTo) => &version != self.version.as_ref().unwrap(),
-        }
+    /// Uses the Selector embedded in the matchspec to do a match on only a version
+    /// ```
+    /// use ::matchspec::*;
+    ///
+    /// let ms: MatchSpec<String> = "openssl>1.1.1a".parse().unwrap();
+    /// assert!(ms.is_version_match("1.1.1r".to_string()));
+    /// ```
+    pub fn is_version_match(&self, version: S) -> bool {
+        self.selector
+            .as_ref()
+            .zip(self.version.as_ref())
+            .map(|(s, v)| s.boolean_operator()(version.as_ref(), v.as_ref()))
+            .unwrap_or(false)
     }
 
-    fn is_package_version_match(&self, package: S, version: S) -> bool {
+    pub fn is_package_version_match(&self, package: S, version: S) -> bool {
         self.package == package && self.is_version_match(version)
     }
 }
