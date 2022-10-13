@@ -39,6 +39,19 @@ where
     }
 }
 
+impl Selector {
+    fn boolean_operator(&self) -> fn(&str, &str) -> bool {
+        match self {
+            Selector::EqualTo => str::eq,
+            Selector::NotEqualTo => str::ne,
+            Selector::LessThan => str::lt,
+            Selector::LessThanOrEqualTo => str::le,
+            Selector::GreaterThan => str::gt,
+            Selector::GreaterThanOrEqualTo => str::ge,
+        }
+    }
+}
+
 /// Tests for alphanumeric with dashes, underscores, or periods
 /// ```
 /// use matchspec::matchspec::is_alphanumeric_with_dashes;
@@ -78,12 +91,12 @@ pub fn is_alphanumeric_with_dashes_or_period(c: char) -> bool {
 #[derive(Debug, Clone, Default)]
 pub struct MatchSpec<S>
 where
-    S: AsRef<str>,
+    S: AsRef<str> + PartialEq + PartialOrd,
 {
     pub channel: Option<S>,
     pub subdir: Option<S>,
     pub namespace: Option<S>,
-    pub package: String,
+    pub package: S,
     pub selector: Option<Selector>,
     pub version: Option<S>,
     pub key_value_pairs: Vec<(S, Selector, S)>,
@@ -191,6 +204,7 @@ pub fn key_value_pair_parser(s: &str) -> IResult<&str, (&str, &str, &str)> {
 /// Parses the whole matchspec using Nom, returing a `MatchSpecTuple`
 /// Assumes this format:
 /// `(channel(/subdir):(namespace):)name(version(build))[key1=value1,key2=value2]`
+/// Instead of using this directly please use the `"".parse()` style provided by FromStr
 fn parse_matchspec(s: &str) -> IResult<&str, MatchSpecTuple<&str>, NomError<&str>> {
     let subdir_parser = delimited(
         char('/'),
@@ -268,6 +282,38 @@ impl FromStr for MatchSpec<String> {
                 code,
             }),
         }
+    }
+}
+
+impl<S: AsRef<str> + PartialOrd + PartialEq<str>> MatchSpec<S> {
+    /// Does simple &str equality matching against the package name
+    /// ```
+    /// use ::matchspec::*;
+    ///
+    /// let ms: MatchSpec<String> = "openssl>1.1.1a".parse().unwrap();
+    /// assert!(ms.is_package_match("openssl".to_string()));
+    /// ```
+    pub fn is_package_match(&self, package: S) -> bool {
+        self.package == package
+    }
+
+    /// Uses the Selector embedded in the matchspec to do a match on only a version
+    /// ```
+    /// use ::matchspec::*;
+    ///
+    /// let ms: MatchSpec<String> = "openssl>1.1.1a".parse().unwrap();
+    /// assert!(ms.is_version_match("1.1.1r".to_string()));
+    /// ```
+    pub fn is_version_match(&self, version: S) -> bool {
+        self.selector
+            .as_ref()
+            .zip(self.version.as_ref())
+            .map(|(s, v)| s.boolean_operator()(version.as_ref(), v.as_ref()))
+            .unwrap_or(false)
+    }
+
+    pub fn is_package_version_match(&self, package: S, version: S) -> bool {
+        self.package == package && self.is_version_match(version)
     }
 }
 
@@ -480,6 +526,27 @@ mod test {
                     "linux-64".to_string()
                 ))
             );
+        }
+    }
+
+    #[cfg(test)]
+    mod matching {
+        use crate::matchspec::*;
+
+        #[test]
+        fn package_only() {
+            let ms: MatchSpec<String> = "tensorflow".parse().unwrap();
+
+            assert!(ms.is_package_match("tensorflow".to_string()));
+            assert!(!ms.is_package_match("pytorch".to_string()));
+        }
+
+        #[test]
+        fn package_and_version_only() {
+            let ms: MatchSpec<String> = "tensorflow>1.9.2".parse().unwrap();
+
+            assert!(ms.is_package_version_match("tensorflow".to_string(), "1.9.3".to_string()));
+            assert!(!ms.is_package_version_match("tensorflow".to_string(), "1.9.0".to_string()));
         }
     }
 }

@@ -9,7 +9,7 @@ The way you instantiate a MatchSpec is by parsing a string into the type:
 ```rust
 use matchspec::MatchSpec;
 
-let matchspec: MatchSpec = "main/linux-64::pytorch>1.10.2".parse();
+let matchspec: MatchSpec<String> = "main/linux-64::pytorch>1.10.2".parse();
 
 assert_eq!(matchspec.name, "pytorch".to_string());
 assert_eq!(matchspec.selector, matchspec::Selector::GreaterThan);
