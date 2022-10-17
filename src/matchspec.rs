@@ -550,11 +550,19 @@ mod test {
         }
     }
 
+    // This is a suite of tests using real data from things like the repodata.json
+    #[cfg(test)]
     mod real_life {
         use crate::matchspec::*;
         use std::fs::File;
         use std::io::{BufRead, BufReader};
 
+        /// This is a test that loads data from repodata.json
+        /// Here's how that file was generated:
+        ///
+        /// ```bash
+        /// curl https://repo.anaconda.com/pkgs/main/linux-64/repodata.json | jq -rM '.packages | map(.depends) | flatten | .[]' > test_data/linux_64-depends.txt
+        /// ```
         #[test]
         fn repodata_depends() {
             let depends_file = format!(
