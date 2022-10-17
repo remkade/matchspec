@@ -549,4 +549,30 @@ mod test {
             assert!(!ms.is_package_version_match("tensorflow".to_string(), "1.9.0".to_string()));
         }
     }
+
+    mod real_life {
+        use crate::matchspec::*;
+        use std::fs::File;
+        use std::io::{BufRead, BufReader};
+
+        #[test]
+        fn repodata_depends() {
+            let depends_file = format!(
+                "{}/test_data/linux_64-depends.txt",
+                env!("CARGO_MANIFEST_DIR")
+            );
+            let repodata_depends_buffer =
+                BufReader::new(File::open(depends_file).expect("opening repodata depends file"));
+            let depends: Vec<String> = repodata_depends_buffer
+                .lines()
+                .map(|l| l.unwrap())
+                .collect();
+
+            for line in depends {
+                let _parsed: MatchSpec<String> = line
+                    .parse()
+                    .unwrap_or_else(|_| panic!("Failed to parse: {}", line));
+            }
+        }
+    }
 }
