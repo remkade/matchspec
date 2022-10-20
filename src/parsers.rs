@@ -146,7 +146,6 @@ mod test {
 
             assert_eq!(
                 channel_parser("main/linux-64::tensorflow >=2.9.1"),
-                // Having this space here is ok because the selector_parser handles whitespace
                 Ok(("/linux-64::tensorflow >=2.9.1", "main"))
             );
         }

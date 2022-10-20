@@ -1,7 +1,7 @@
 use crate::parsers::*;
 use nom::branch::alt;
 use nom::error::Error as NomError;
-use nom::{error::Error, Finish};
+use nom::Finish;
 use std::fmt::Debug;
 use std::str::FromStr;
 
