@@ -12,25 +12,12 @@ use nom::{
 };
 
 /// Tests for alphanumeric with dashes, underscores, or periods
-/// ```
-/// use matchspec::parsers::is_alphanumeric_with_dashes;
-///
-/// assert!("_123abc".chars().all(is_alphanumeric_with_dashes));
-/// ```
-pub fn is_alphanumeric_with_dashes(c: char) -> bool {
+fn is_alphanumeric_with_dashes(c: char) -> bool {
     is_alphabetic(c as u8) || is_digit(c as u8) || c == '-' || c == '_'
 }
 
 /// Tests for alphanumeric with dashes, underscores, or periods
-/// ```
-///  use matchspec::parsers::is_alphanumeric_with_dashes_or_period;
-///
-///  assert!("_.123abc".chars().all(is_alphanumeric_with_dashes_or_period));
-///  assert!("conda-forge".chars().all(is_alphanumeric_with_dashes_or_period));
-///  assert!("1.1.1a".chars().all(is_alphanumeric_with_dashes_or_period));
-///  assert_eq!(false, "!#$&*#(".chars().all(is_alphanumeric_with_dashes_or_period));
-/// ```
-pub fn is_alphanumeric_with_dashes_or_period(c: char) -> bool {
+fn is_alphanumeric_with_dashes_or_period(c: char) -> bool {
     is_alphanumeric_with_dashes(c) || c == '.'
 }
 
@@ -46,13 +33,7 @@ pub fn is_alphanumeric_with_dashes_or_period(c: char) -> bool {
 /// | !=       | Not Equal                                                                  |
 /// | ~=       | [Compatible Release](https://peps.python.org/pep-0440/#compatible-release) |
 ///
-/// ```
-///  use matchspec::matchspec::selector_parser;
-///
-///  assert_eq!(selector_parser("!=2.9.1"), Ok(("2.9.1", "!=")));
-///  assert_eq!(selector_parser(">2.9.1"), Ok(("2.9.1", ">")));
-/// ```
-pub fn selector_parser(s: &str) -> IResult<&str, &str> {
+pub(crate) fn selector_parser(s: &str) -> IResult<&str, &str> {
     delimited(
         multispace0,
         alt((
@@ -71,45 +52,22 @@ pub fn selector_parser(s: &str) -> IResult<&str, &str> {
 }
 
 /// Parses the package name
-/// ```
-///  use matchspec::matchspec::name_parser;
-///
-///  assert_eq!(name_parser("tensorflow >=2.9.1"), Ok((" >=2.9.1", "tensorflow")));
-///  assert_eq!(name_parser("tensorflow>=2.9.1"), Ok((">=2.9.1", "tensorflow")));
-/// ```
-pub fn name_parser(s: &str) -> IResult<&str, &str> {
+pub(crate) fn name_parser(s: &str) -> IResult<&str, &str> {
     take_while(is_alphanumeric_with_dashes_or_period)(s)
 }
 
 /// Parses the package version
-/// ```
-///  use matchspec::matchspec::version_parser;
-///
-///  assert_eq!(version_parser("2.9.1"), Ok(("", "2.9.1")));
-///  assert_eq!(version_parser("2.9.1[subdir=linux]"), Ok(("[subdir=linux]", "2.9.1")));
-/// ```
-pub fn version_parser(s: &str) -> IResult<&str, &str> {
+pub(crate) fn version_parser(s: &str) -> IResult<&str, &str> {
     take_while1(is_alphanumeric_with_dashes_or_period)(s)
 }
 
 /// Parses the channel
-/// ```
-///  use matchspec::matchspec::channel_parser;
-///
-///  assert_eq!(channel_parser("conda-forge/linux-64::tensorflow"), Ok(("/linux-64::tensorflow", "conda-forge")));
-///  assert_eq!(channel_parser("main::python"), Ok(("::python", "main")));
-/// ```
-pub fn channel_parser(s: &str) -> IResult<&str, &str> {
+pub(crate) fn channel_parser(s: &str) -> IResult<&str, &str> {
     terminated(take_while(is_alphanumeric_with_dashes), peek(one_of(":/")))(s)
 }
 
 /// Parses a single key_value_pair
-/// ```
-///  use matchspec::matchspec::key_value_pair_parser;
-///
-///  assert_eq!(key_value_pair_parser("subdir=linux-64"), Ok(("", ("subdir", "=", "linux-64"))));
-/// ```
-pub fn key_value_pair_parser(s: &str) -> IResult<&str, (&str, &str, &str)> {
+pub(crate) fn key_value_pair_parser(s: &str) -> IResult<&str, (&str, &str, &str)> {
     let value_parser = delimited(
         opt(one_of("'\"")),
         take_while1(is_alphanumeric_with_dashes),
@@ -132,7 +90,7 @@ pub fn key_value_pair_parser(s: &str) -> IResult<&str, (&str, &str, &str)> {
 /// _libgcc_mutex 0.1 main
 /// backports_abc 0.5 py27h7b3c97b_0
 /// ```
-pub fn implicit_matchspec_parser(s: &str) -> IResult<&str, MatchSpec<String>> {
+pub(crate) fn implicit_matchspec_parser(s: &str) -> IResult<&str, MatchSpec<String>> {
     let (remainder, t) = tuple((
         take_while1(is_alphanumeric_with_dashes_or_period),
         opt(delimited(multispace1, version_parser, multispace0)),
@@ -148,7 +106,7 @@ pub fn implicit_matchspec_parser(s: &str) -> IResult<&str, MatchSpec<String>> {
 /// Assumes this format:
 /// `(channel(/subdir):(namespace):)name(version(build))[key1=value1,key2=value2]`
 /// Instead of using this directly please use the `"".parse()` style provided by FromStr
-pub fn full_matchspec_parser(s: &str) -> IResult<&str, MatchSpec<String>, NomError<&str>> {
+pub(crate) fn full_matchspec_parser(s: &str) -> IResult<&str, MatchSpec<String>, NomError<&str>> {
     let subdir_parser = delimited(
         char('/'),
         take_while(is_alphanumeric_with_dashes),
