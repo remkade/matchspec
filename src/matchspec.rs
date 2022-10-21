@@ -33,7 +33,7 @@ where
 }
 
 impl Selector {
-    fn boolean_operator(&self) -> fn(&str, &str) -> bool {
+    pub fn boolean_operator(&self) -> fn(&str, &str) -> bool {
         match self {
             Selector::EqualTo => str::eq,
             Selector::NotEqualTo => str::ne,
@@ -73,6 +73,16 @@ where
     },
 }
 
+/// Create a selector from a parser tuple:
+/// ```
+/// use matchspec::{Selector, CompoundSelector};
+///
+/// let cs = CompoundSelector::from((">", "1.1.1"));
+/// assert_eq!(cs, CompoundSelector::Single{
+///     selector: Selector::GreaterThan,
+///     version: "1.1.1".to_string(),
+/// });
+/// ```
 impl<S, V> From<(S, V)> for CompoundSelector<String>
 where
     S: Into<Selector>,
@@ -82,6 +92,76 @@ where
         CompoundSelector::Single {
             selector: input.0.into(),
             version: input.1.into(),
+        }
+    }
+}
+
+impl<S> CompoundSelector<S>
+where
+    S: AsRef<str> + PartialEq + Into<String>,
+{
+    /// This takes a versions and tests that it falls within the constraints of this CompoundSelector
+    /// ```
+    ///  use matchspec::{Selector, CompoundSelector};
+    ///
+    ///  let single = CompoundSelector::Single {
+    ///     selector: Selector::GreaterThan,
+    ///     version: "1.1.1",
+    ///  };
+    ///  
+    ///  assert!(single.is_match(&"1.2.1"));
+    ///  assert!(single.is_match(&"3.0.0"));
+    ///  assert!(!single.is_match(&"1.1.1"));
+    ///  assert!(!single.is_match(&"0.1.1"));
+    ///  
+    ///  let and = CompoundSelector::And {
+    ///     first_selector: Selector::GreaterThan,
+    ///     first_version: "1.1.1",
+    ///     second_selector: Selector::LessThanOrEqualTo,
+    ///     second_version: "1.2.1",
+    ///  };
+    ///  
+    ///  assert!(and.is_match(&"1.2.1"));
+    ///  assert!(and.is_match(&"1.1.7"));
+    ///  assert!(!and.is_match(&"1.2.2"));
+    ///  assert!(!and.is_match(&"0.1.1"));
+    ///  
+    ///  let or = CompoundSelector::Or {
+    ///     first_selector: Selector::LessThan,
+    ///     first_version: "1.1.1",
+    ///     second_selector: Selector::GreaterThan,
+    ///     second_version: "1.2.1",
+    ///  };
+    ///  
+    ///  assert!(or.is_match(&"3.0.0"));
+    ///  assert!(or.is_match(&"0.1.1"));
+    ///  assert!(!or.is_match(&"1.2.1"));
+    ///  assert!(!or.is_match(&"1.1.1"));
+    ///  assert!(!or.is_match(&"1.1.7"));
+    ///  ```
+    pub fn is_match(&self, other: &S) -> bool {
+        match self {
+            CompoundSelector::Single { selector, version } => {
+                selector.boolean_operator()(other.as_ref(), version.as_ref())
+            }
+            CompoundSelector::And {
+                first_selector,
+                first_version,
+                second_selector,
+                second_version,
+            } => {
+                first_selector.boolean_operator()(other.as_ref(), first_version.as_ref())
+                    && second_selector.boolean_operator()(other.as_ref(), second_version.as_ref())
+            }
+            CompoundSelector::Or {
+                first_selector,
+                first_version,
+                second_selector,
+                second_version,
+            } => {
+                first_selector.boolean_operator()(other.as_ref(), first_version.as_ref())
+                    || second_selector.boolean_operator()(other.as_ref(), second_version.as_ref())
+            }
         }
     }
 }
@@ -332,6 +412,44 @@ mod test {
 
             assert!(ms.is_package_version_match("tensorflow".to_string(), "1.9.3".to_string()));
             assert!(!ms.is_package_version_match("tensorflow".to_string(), "1.9.0".to_string()));
+        }
+
+        #[test]
+        fn compound_selectors() {
+            let single = CompoundSelector::Single {
+                selector: Selector::GreaterThan,
+                version: "1.1.1",
+            };
+
+            assert!(single.is_match(&"1.2.1"));
+            assert!(single.is_match(&"3.0.0"));
+            assert!(!single.is_match(&"1.1.1"));
+            assert!(!single.is_match(&"0.1.1"));
+
+            let and = CompoundSelector::And {
+                first_selector: Selector::GreaterThan,
+                first_version: "1.1.1",
+                second_selector: Selector::LessThanOrEqualTo,
+                second_version: "1.2.1",
+            };
+
+            assert!(and.is_match(&"1.2.1"));
+            assert!(and.is_match(&"1.1.7"));
+            assert!(!and.is_match(&"1.2.2"));
+            assert!(!and.is_match(&"0.1.1"));
+
+            let or = CompoundSelector::Or {
+                first_selector: Selector::LessThan,
+                first_version: "1.1.1",
+                second_selector: Selector::GreaterThan,
+                second_version: "1.2.1",
+            };
+
+            assert!(or.is_match(&"3.0.0"));
+            assert!(or.is_match(&"0.1.1"));
+            assert!(!or.is_match(&"1.2.1"));
+            assert!(!or.is_match(&"1.1.1"));
+            assert!(!or.is_match(&"1.1.7"));
         }
     }
 }
