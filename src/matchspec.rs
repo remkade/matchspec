@@ -45,6 +45,89 @@ impl Selector {
     }
 }
 
+/// CompoundSelector is a grouping of selector and version pairs. For example, in these MatchSpecs:
+/// ```text
+///  gcc>9|!=10.0.1 # GCC must be greater than 9.* OR not 10.0.1
+///  python>=3.0.0,<3.7.2 # Python must be greater than or equal to 3.0.0 AND less than 3.7.2
+/// ```
+#[derive(Debug, PartialEq, Eq)]
+pub enum CompoundSelector<S>
+where
+    S: Into<String> + AsRef<str>,
+{
+    Single {
+        selector: Selector,
+        version: S,
+    },
+    And {
+        first_selector: Selector,
+        first_version: S,
+        second_selector: Selector,
+        second_version: S,
+    },
+    Or {
+        first_selector: Selector,
+        first_version: S,
+        second_selector: Selector,
+        second_version: S,
+    },
+}
+
+impl<S, V> From<(S, V)> for CompoundSelector<String>
+where
+    S: Into<Selector>,
+    V: Into<String>,
+{
+    fn from(input: (S, V)) -> Self {
+        CompoundSelector::Single {
+            selector: input.0.into(),
+            version: input.1.into(),
+        }
+    }
+}
+
+/// Create a selector from a parser tuple:
+/// ```
+/// use matchspec::{Selector, CompoundSelector};
+///
+/// let cs = CompoundSelector::from((">", "1.1.1", ",", "<", "3.0.0"));
+/// assert_eq!(cs, CompoundSelector::And{
+///     first_selector: Selector::GreaterThan,
+///     first_version: "1.1.1".to_string(),
+///     second_selector: Selector::LessThan,
+///     second_version: "3.0.0".to_string(),
+/// });
+/// ```
+impl<S, V> From<(S, V, V, S, V)> for CompoundSelector<String>
+where
+    S: Into<Selector>,
+    V: Into<String> + AsRef<str> + PartialEq + std::fmt::Display,
+{
+    fn from(
+        (first_selector, first_version, joiner, second_selector, second_version): (S, V, V, S, V),
+    ) -> Self {
+        match joiner.as_ref() {
+            "|" => CompoundSelector::Or {
+                first_selector: first_selector.into(),
+                first_version: first_version.into(),
+                second_selector: second_selector.into(),
+                second_version: second_version.into(),
+            },
+            "," => CompoundSelector::And {
+                first_selector: first_selector.into(),
+                first_version: first_version.into(),
+                second_selector: second_selector.into(),
+                second_version: second_version.into(),
+            },
+            // Should be impossible to hit this if you are instantiating this from a parser
+            _ => panic!(
+                "Unable to create CompoundSelector, invalid joiner '{}'",
+                joiner
+            ),
+        }
+    }
+}
+
 /// This struct encodes the conda MatchSpec language as a datatype.
 /// ## Examples
 /// Conda recognizes this as the official MatchSpec Structure
