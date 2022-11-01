@@ -17,12 +17,18 @@ let matchspec: MatchSpec<String> = "main/linux-64::pytorch>1.10.2".parse().unwra
 assert_eq!(&matchspec.package, "pytorch");
 
 // These are optional, so they will be wrapped in an Option
-assert_eq!(matchspec.selector, Some(matchspec::Selector::GreaterThan));
-assert_eq!(matchspec.version, Some("1.10.2".to_string()));
+assert_eq!(matchspec.channel, Some("main".to_string()));
+assert_eq!(
+	matchspec.version,
+	Some(matchspec::CompoundSelector::Single {
+		selector: matchspec::Selector::GreaterThan,
+		version: "1.10.2".to_string(),
+	})
+);
 
 // You can also check to see if a package name and version match the spec.
 // This is a faster function that allows us to bypass some sometimes unnecessary tests like channel or subdir
-assert!(matchspec.is_package_version_match("pytorch", "1.11.0"))
+assert!(matchspec.is_package_version_match(&"pytorch", &"1.11.0"))
 ```
 
 ## Benchmarking

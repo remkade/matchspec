@@ -3,7 +3,7 @@ use nom::error::Error as NomError;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while, take_while1},
-    character::complete::{alphanumeric1, char, multispace0, multispace1, one_of},
+    character::complete::{alphanumeric0, alphanumeric1, char, multispace0, multispace1, one_of},
     character::{is_alphabetic, is_digit},
     combinator::{complete, eof, opt, peek},
     multi::separated_list0,
@@ -19,6 +19,15 @@ fn is_alphanumeric_with_dashes(c: char) -> bool {
 /// Tests for alphanumeric with dashes, underscores, or periods
 fn is_alphanumeric_with_dashes_or_period(c: char) -> bool {
     is_alphanumeric_with_dashes(c) || c == '.'
+}
+
+// Allows any of the following character classes:
+// * alphanumeric: `A-Za-z0-9`
+// * Periods: `.`
+// * dashes or underscores: `-`, `_`
+// * glob character (asterisk): `*`
+fn is_any_valid_str_with_glob(c: char) -> bool {
+    is_alphanumeric_with_dashes_or_period(c) || c == '*'
 }
 
 /// Parses a version selector. Possible values:
@@ -54,12 +63,12 @@ pub(crate) fn selector_parser(s: &str) -> IResult<&str, &str> {
 
 /// Parses the package name
 pub(crate) fn name_parser(s: &str) -> IResult<&str, &str> {
-    take_while(is_alphanumeric_with_dashes_or_period)(s)
+    take_while1(is_any_valid_str_with_glob)(s)
 }
 
 /// Parses the package version
 pub(crate) fn version_parser(s: &str) -> IResult<&str, &str> {
-    take_while1(is_alphanumeric_with_dashes_or_period)(s)
+    take_while1(is_any_valid_str_with_glob)(s)
 }
 
 fn version_and_selector_parser(s: &str) -> IResult<&str, (&str, &str)> {
@@ -129,19 +138,24 @@ pub(crate) fn implicit_matchspec_parser(s: &str) -> IResult<&str, MatchSpec<Stri
 /// `(channel(/subdir):(namespace):)name(version(build))[key1=value1,key2=value2]`
 /// Instead of using this directly please use the `"".parse()` style provided by FromStr
 pub(crate) fn full_matchspec_parser(s: &str) -> IResult<&str, MatchSpec<String>, NomError<&str>> {
+    // Eats `/subdir`
     let subdir_parser = delimited(
         char('/'),
         take_while(is_alphanumeric_with_dashes),
-        char(':'),
+        peek(char(':')),
     );
 
-    let namespace_parser = terminated(alphanumeric1, char(':'));
+    // Eats `:namespace:`
+    let namespace_parser = delimited(char(':'), alphanumeric0, char(':'));
+
+    // Eats `[ .. ]`
     let keys_vec_parser = delimited(
         char('['),
         separated_list0(char(','), key_value_pair_parser),
         char(']'),
     );
 
+    // Put all the parsers together
     let (remainder, t) = complete(tuple((
         opt(channel_parser),
         opt(subdir_parser),
@@ -481,7 +495,7 @@ mod test {
                 channel: Some("conda-forge".to_string()),
                 subdir: Some("linux-64".to_string()),
                 namespace: Some("UNUSED".to_string()),
-                package: "pytorch".to_string(),
+                package: "tensorflow".to_string(),
                 build: None,
                 version: Some(CompoundSelector::And {
                     first_selector: Selector::GreaterThan,

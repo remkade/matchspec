@@ -330,10 +330,10 @@ impl<S>
         Option<Vec<(S, S, S)>>,
     )> for MatchSpec<String>
 where
-    S: Into<String> + AsRef<str> + PartialEq,
+    S: Into<String> + AsRef<str> + PartialEq + std::fmt::Display,
 {
     fn from(
-        (channel, subdir, namespace, package, cs, keys): (
+        (channel, subdir, ns, package, cs, keys): (
             Option<S>,
             Option<S>,
             Option<S>,
@@ -359,11 +359,21 @@ where
             })
             .unwrap_or_default();
 
+        let namespace = if let Some(a) = ns {
+            if a.as_ref().is_empty() {
+                None
+            } else {
+                Some(a.to_string())
+            }
+        } else {
+            None
+        };
+
         // Create the initial struct based on the parsed tuple
         let mut ms = MatchSpec {
             channel: channel.map(|s| s.into()),
             subdir: subdir.map(|s| s.into()),
-            namespace: namespace.map(|s| s.into()),
+            namespace,
             package: package.into(),
             version: cs,
             build: None,
@@ -405,7 +415,7 @@ impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
     /// use ::matchspec::*;
     ///
     /// let ms: MatchSpec<String> = "openssl>1.1.1a".parse().unwrap();
-    /// assert!(ms.is_version_match("1.1.1r".to_string()));
+    /// assert!(ms.is_version_match(&"1.1.1r"));
     /// ```
     pub fn is_version_match<V: AsRef<str> + PartialEq>(&self, version: &V) -> bool {
         self.version.as_ref().map(|v| v.is_match(version)).unwrap_or(true)
