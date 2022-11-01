@@ -10,16 +10,25 @@ The way you instantiate a MatchSpec is by parsing a string into the type:
 use matchspec::MatchSpec;
 
 // Create the MatchSpec by parsing a String or &str
-let matchspec: MatchSpec<String> = "main/linux-64::pytorch>1.10.2".parse();
+let matchspec: MatchSpec<String> = "main/linux-64::pytorch>1.10.2".parse().unwrap();
 
 // You then have the data accessible inside the MatchSpec struct if you want it
-assert_eq!(matchspec.name, "pytorch".to_string());
-assert_eq!(matchspec.selector, matchspec::Selector::GreaterThan);
-assert_eq!(matchspec.version, "1.10.2".to_string());
+// Package name is the only mandatory field in a matchspec
+assert_eq!(&matchspec.package, "pytorch");
+
+// These are optional, so they will be wrapped in an Option
+assert_eq!(matchspec.channel, Some("main".to_string()));
+assert_eq!(
+	matchspec.version,
+	Some(matchspec::CompoundSelector::Single {
+		selector: matchspec::Selector::GreaterThan,
+		version: "1.10.2".to_string(),
+	})
+);
 
 // You can also check to see if a package name and version match the spec.
 // This is a faster function that allows us to bypass some sometimes unnecessary tests like channel or subdir
-assert!(matchspec.is_package_version_match("pytorch", "1.11.0"))
+assert!(matchspec.is_package_version_match(&"pytorch", &"1.11.0"))
 ```
 
 ## Benchmarking
