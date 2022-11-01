@@ -33,6 +33,7 @@ fn is_alphanumeric_with_dashes_or_period(c: char) -> bool {
 /// | !=       | Not Equal                                                                  |
 /// | ~=       | [Compatible Release](https://peps.python.org/pep-0440/#compatible-release) |
 ///
+/// *Note:* Compatible Release is not yet supported and will be mapped to `Selector::EqualTo`
 pub(crate) fn selector_parser(s: &str) -> IResult<&str, &str> {
     delimited(
         multispace0,
@@ -61,12 +62,33 @@ pub(crate) fn version_parser(s: &str) -> IResult<&str, &str> {
     take_while1(is_alphanumeric_with_dashes_or_period)(s)
 }
 
+fn version_and_selector_parser(s: &str) -> IResult<&str, (&str, &str)> {
+    tuple((selector_parser, version_parser))(s)
+}
+
+pub(crate) fn compound_selector_parser(s: &str) -> IResult<&str, CompoundSelector<String>> {
+    let result = tuple((
+        version_and_selector_parser,
+        delimited(multispace0, one_of(",|"), multispace0),
+        version_and_selector_parser,
+    ))(s);
+
+    // If we can parse via the more exhaustive parser, return that.
+    if let Ok((remainder, parsed)) = result {
+        Ok((remainder, parsed.into()))
+    } else {
+        let (remainder, parsed) = version_and_selector_parser(s)?;
+        Ok((remainder, parsed.into()))
+    }
+}
+
 /// Parses the channel
 pub(crate) fn channel_parser(s: &str) -> IResult<&str, &str> {
     terminated(take_while(is_alphanumeric_with_dashes), peek(one_of(":/")))(s)
 }
 
-/// Parses a single key_value_pair
+/// Parses a single key_value_pair:
+/// `key=value`
 pub(crate) fn key_value_pair_parser(s: &str) -> IResult<&str, (&str, &str, &str)> {
     let value_parser = delimited(
         opt(one_of("'\"")),
@@ -125,8 +147,7 @@ pub(crate) fn full_matchspec_parser(s: &str) -> IResult<&str, MatchSpec<String>,
         opt(subdir_parser),
         opt(namespace_parser),
         name_parser,
-        opt(selector_parser),
-        opt(version_parser),
+        opt(compound_selector_parser),
         opt(keys_vec_parser),
     )))(s)?;
 
@@ -247,7 +268,14 @@ mod test {
                     package_version.version,
                     package_version.build
                 ),
-                ("tensorflow", Some("2.9.1".to_string()), None)
+                (
+                    "tensorflow",
+                    Some(CompoundSelector::Single {
+                        selector: Selector::EqualTo,
+                        version: "2.9.1".to_string()
+                    }),
+                    None
+                )
             );
 
             let (_, everything) =
@@ -260,7 +288,10 @@ mod test {
                 ),
                 (
                     "tensorflow",
-                    Some("2.9.1".to_string()),
+                    Some(CompoundSelector::Single {
+                        selector: Selector::EqualTo,
+                        version: "2.9.1".to_string()
+                    }),
                     Some("mkl_py39hb9fcb14_0".to_string())
                 ),
             );
@@ -285,8 +316,10 @@ mod test {
             let base: MatchSpec<String> = MatchSpec::default();
             let expected = MatchSpec {
                 package: "tensorflow".to_string(),
-                selector: Some(Selector::GreaterThanOrEqualTo),
-                version: Some("2.9.1".to_string()),
+                version: Some(CompoundSelector::Single {
+                    selector: Selector::GreaterThanOrEqualTo,
+                    version: "2.9.1".to_string(),
+                }),
                 ..base
             };
 
@@ -317,8 +350,10 @@ mod test {
             // Our output should look like this
             let expected = MatchSpec {
                 package: "tensorflow".to_string(),
-                selector: Some(Selector::EqualTo),
-                version: Some("2.9.1".to_string()),
+                version: Some(CompoundSelector::Single {
+                    selector: Selector::EqualTo,
+                    version: "2.9.1".to_string(),
+                }),
                 ..base
             };
 
@@ -340,29 +375,33 @@ mod test {
         /// `tensorflow==2.9.1[build="mkl_py39hb9fcb14_0"]`
         #[test]
         fn package_version_build_implicit_matcher() {
+            let expected = MatchSpec {
+                package: "tensorflow".to_string(),
+                version: Some(CompoundSelector::Single {
+                    selector: Selector::EqualTo,
+                    version: "2.9.1".to_string(),
+                }),
+                key_value_pairs: Vec::new(),
+                build: Some("mkl_py39hb9fcb14_0".to_string()),
+                channel: None,
+                subdir: None,
+                namespace: None,
+            };
+
             // Test the explicit matcher first
             let explicit: MatchSpec<String> = "tensorflow==2.9.1[build=\"mkl_py39hb9fcb14_0\"]"
                 .parse()
                 .unwrap();
 
-            assert_eq!(explicit.subdir, None);
-            assert_eq!(explicit.namespace, None);
-            assert_eq!(explicit.package, "tensorflow");
-            assert_eq!(explicit.version, Some("2.9.1".to_string()));
-            assert_eq!(explicit.selector, Some(Selector::EqualTo));
-            assert!(!explicit.key_value_pairs.is_empty());
-            assert_eq!(explicit.build, Some("mkl_py39hb9fcb14_0".to_string()));
+            // Test against expected
+            assert_eq!(expected, explicit);
 
             // Test the implicit matcher second
             let implicit: MatchSpec<String> =
                 "tensorflow 2.9.1 mkl_py39hb9fcb14_0".parse().unwrap();
-            assert_eq!(implicit.subdir, None);
-            assert_eq!(implicit.namespace, None);
-            assert_eq!(implicit.package, "tensorflow");
-            assert_eq!(implicit.version, Some("2.9.1".to_string()));
-            assert_eq!(implicit.selector, Some(Selector::EqualTo));
-            assert_eq!(explicit.build, Some("mkl_py39hb9fcb14_0".to_string()));
-            assert!(implicit.key_value_pairs.is_empty());
+
+            // Test against expected
+            assert_eq!(expected, explicit);
 
             // They should both be equal
             assert_eq!(implicit, explicit);
@@ -377,8 +416,13 @@ mod test {
             assert_eq!(ms.subdir, None);
             assert_eq!(ms.namespace, None);
             assert_eq!(ms.package, "tensorflow");
-            assert_eq!(ms.version, Some("1".to_string()));
-            assert_eq!(ms.selector, Some(Selector::GreaterThan));
+            assert_eq!(
+                ms.version,
+                Some(CompoundSelector::Single {
+                    selector: Selector::GreaterThan,
+                    version: "1".to_string()
+                })
+            );
             assert_eq!(ms.key_value_pairs.len(), 1);
             assert_eq!(
                 ms.key_value_pairs.get(0),
@@ -412,31 +456,48 @@ mod test {
         }
 
         #[test]
+        fn everything_except_namespace() {
+            let ms: MatchSpec<String> = "main/linux-64::pytorch>1.10.2".parse().unwrap();
+
+            let expected = MatchSpec {
+                channel: Some("main".to_string()),
+                subdir: Some("linux-64".to_string()),
+                namespace: None,
+                package: "pytorch".to_string(),
+                build: None,
+                version: Some(CompoundSelector::Single {
+                    selector: Selector::GreaterThan,
+                    version: "1.10.2".to_string(),
+                }),
+                key_value_pairs: Vec::new(),
+            };
+
+            assert_eq!(ms, expected);
+        }
+
+        #[test]
         fn everything_specified() {
-            let result: Result<MatchSpec<String>, nom::error::Error<String>> =
-                "conda-forge/linux-64:UNUSED:tensorflow>2.9.1[license=GPL, subdir=linux-64]"
-                    .parse();
+            let expected = MatchSpec {
+                channel: Some("conda-forge".to_string()),
+                subdir: Some("linux-64".to_string()),
+                namespace: Some("UNUSED".to_string()),
+                package: "pytorch".to_string(),
+                build: None,
+                version: Some(CompoundSelector::And {
+                    first_selector: Selector::GreaterThan,
+                    first_version: "2.9.1".to_string(),
+                    second_selector: Selector::LessThan,
+                    second_version: "3.0.0".to_string(),
+                }),
+                key_value_pairs: Vec::new(),
+            };
 
-            let ms = result.unwrap();
-            assert_eq!(ms.channel, Some("conda-forge".to_string()));
-            assert_eq!(ms.subdir, Some("linux-64".to_string()));
-            assert_eq!(ms.namespace, Some("UNUSED".to_string()));
-            assert_eq!(ms.package, "tensorflow");
-            assert_eq!(ms.version, Some("2.9.1".to_string()));
-            assert_eq!(ms.key_value_pairs.len(), 2);
-            assert_eq!(
-                ms.key_value_pairs.get(0),
-                Some(&("license".to_string(), Selector::EqualTo, "GPL".to_string()))
-            );
+            let ms: MatchSpec<String> =
+                "conda-forge/linux-64:UNUSED:tensorflow>2.9.1,<3.0.0[license=GPL, subdir=linux-64]"
+                    .parse()
+                    .unwrap();
 
-            assert_eq!(
-                ms.key_value_pairs.get(1),
-                Some(&(
-                    "subdir".to_string(),
-                    Selector::EqualTo,
-                    "linux-64".to_string()
-                ))
-            );
+            assert_eq!(expected, ms);
         }
     }
 

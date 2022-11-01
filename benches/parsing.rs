@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use matchspec::MatchSpec;
+use matchspec::matchspec::MatchSpec;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 

@@ -50,7 +50,7 @@ impl Selector {
 ///  gcc>9|!=10.0.1 # GCC must be greater than 9.* OR not 10.0.1
 ///  python>=3.0.0,<3.7.2 # Python must be greater than or equal to 3.0.0 AND less than 3.7.2
 /// ```
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CompoundSelector<S>
 where
     S: Into<String> + AsRef<str>,
@@ -73,6 +73,15 @@ where
     },
 }
 
+impl Default for CompoundSelector<String> {
+    fn default() -> Self {
+        CompoundSelector::Single {
+            selector: Selector::GreaterThanOrEqualTo,
+            version: "0".to_string(),
+        }
+    }
+}
+
 /// Create a selector from a parser tuple:
 /// ```
 /// use matchspec::{Selector, CompoundSelector};
@@ -92,6 +101,20 @@ where
         CompoundSelector::Single {
             selector: input.0.into(),
             version: input.1.into(),
+        }
+    }
+}
+
+impl<S, V> From<((S, V), char, (S, V))> for CompoundSelector<String>
+where
+    S: Into<Selector>,
+    V: Into<String>,
+{
+    fn from((one, boolean, two): ((S, V), char, (S, V))) -> Self {
+        match boolean {
+            '|' => CompoundSelector::Or { first_selector: one.0.into(), first_version: one.1.into(), second_selector: two.0.into(), second_version: two.1.into() },
+            ',' => CompoundSelector::And { first_selector: one.0.into(), first_version: one.1.into(), second_selector: two.0.into(), second_version: two.1.into() },
+            _ => panic!("You must use either | or , as the separator when converting into a CompoundSelector"),
         }
     }
 }
@@ -139,7 +162,7 @@ where
     ///  assert!(!or.is_match(&"1.1.1"));
     ///  assert!(!or.is_match(&"1.1.7"));
     ///  ```
-    pub fn is_match(&self, other: &S) -> bool {
+    pub fn is_match<V: AsRef<str> + PartialEq>(&self, other: &V) -> bool {
         match self {
             CompoundSelector::Single { selector, version } => {
                 selector.boolean_operator()(other.as_ref(), version.as_ref())
@@ -221,17 +244,16 @@ where
 /// ```
 /// Full MatchSpec documentation is found in the code [here](https://github.com/conda/conda/blob/main/conda/models/match_spec.py)
 /// and [here](https://conda.io/projects/conda-build/en/latest/resources/package-spec.html#build-version-spec) in the spec
-#[derive(Debug, Clone, Default, Eq)]
+#[derive(Debug, Clone, Eq)]
 pub struct MatchSpec<S>
 where
-    S: AsRef<str> + PartialEq + PartialOrd,
+    S: AsRef<str> + PartialEq + PartialOrd + Into<String>,
 {
     pub channel: Option<S>,
     pub subdir: Option<S>,
     pub namespace: Option<S>,
     pub package: S,
-    pub selector: Option<Selector>,
-    pub version: Option<S>,
+    pub version: Option<CompoundSelector<S>>,
     pub build: Option<S>,
     pub key_value_pairs: Vec<(S, Selector, S)>,
 }
@@ -241,19 +263,33 @@ where
 /// equality. Makes it simpler to handle potentially unknown future additions to the spec.
 impl<S> PartialEq for MatchSpec<S>
 where
-    S: AsRef<str> + PartialEq + PartialOrd,
+    S: AsRef<str> + PartialEq + PartialOrd + Into<String>,
 {
     fn eq(&self, other: &Self) -> bool {
         self.channel == other.channel
             && self.subdir == other.subdir
             && self.namespace == other.namespace
             && self.package == other.package
-            && self.selector == other.selector
             && self.version == other.version
             && self.build == other.build
     }
 }
 
+impl Default for MatchSpec<String> {
+    fn default() -> Self {
+        MatchSpec {
+            channel: None,
+            subdir: None,
+            namespace: None,
+            package: "*".to_string(),
+            version: None,
+            build: None,
+            key_value_pairs: Vec::new(),
+        }
+    }
+}
+
+/// This is where we actually do the parsing
 impl FromStr for MatchSpec<String> {
     type Err = NomError<String>;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -269,18 +305,16 @@ impl FromStr for MatchSpec<String> {
 
 impl<S> From<(S, Option<S>, Option<S>)> for MatchSpec<String>
 where
-    S: AsRef<str>,
+    S: AsRef<str> + Into<String>,
 {
     fn from((package, version, build): (S, Option<S>, Option<S>)) -> Self {
-        let selector: Option<Selector> = version.as_ref().map(|_| Selector::EqualTo);
         MatchSpec {
             channel: None,
             subdir: None,
             namespace: None,
-            package: package.as_ref().to_string(),
-            selector,
-            version: version.map(|s| s.as_ref().to_string()),
-            build: build.map(|s| s.as_ref().to_string()),
+            package: package.into(),
+            version: version.map(|s| CompoundSelector::Single { selector: Selector::EqualTo, version: s.into() }),
+            build: build.map(|s| s.into()),
             key_value_pairs: Vec::new(),
         }
     }
@@ -292,27 +326,22 @@ impl<S>
         Option<S>,
         Option<S>,
         S,
-        Option<S>,
-        Option<S>,
+        Option<CompoundSelector<String>>,
         Option<Vec<(S, S, S)>>,
     )> for MatchSpec<String>
 where
     S: Into<String> + AsRef<str> + PartialEq,
 {
     fn from(
-        (channel, subdir, namespace, package, s, version, keys): (
+        (channel, subdir, namespace, package, cs, keys): (
             Option<S>,
             Option<S>,
             Option<S>,
             S,
-            Option<S>,
-            Option<S>,
+            Option<CompoundSelector<String>>,
             Option<Vec<(S, S, S)>>,
         ),
     ) -> Self {
-        // Convert inner into selector
-        let selector: Option<Selector> = s.map(Selector::from);
-
         // Convert the key_value_pairs into (S, Selector, S) tuples.
         // I'm not sure its possible to have the full selector set, but this models it in a
         // pretty good way.
@@ -336,8 +365,7 @@ where
             subdir: subdir.map(|s| s.into()),
             namespace: namespace.map(|s| s.into()),
             package: package.into(),
-            selector,
-            version: version.map(|s| s.into()),
+            version: cs,
             build: None,
             key_value_pairs: Vec::new(),
         };
@@ -360,7 +388,7 @@ where
     }
 }
 
-impl<S: AsRef<str> + PartialOrd + PartialEq<str>> MatchSpec<S> {
+impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
     /// Does simple &str equality matching against the package name
     /// ```
     /// use ::matchspec::*;
@@ -379,16 +407,16 @@ impl<S: AsRef<str> + PartialOrd + PartialEq<str>> MatchSpec<S> {
     /// let ms: MatchSpec<String> = "openssl>1.1.1a".parse().unwrap();
     /// assert!(ms.is_version_match("1.1.1r".to_string()));
     /// ```
-    pub fn is_version_match(&self, version: S) -> bool {
-        self.selector
-            .as_ref()
-            .zip(self.version.as_ref())
-            .map(|(s, v)| s.boolean_operator()(version.as_ref(), v.as_ref()))
-            .unwrap_or(false)
+    pub fn is_version_match<V: AsRef<str> + PartialEq>(&self, version: &V) -> bool {
+        self.version.as_ref().map(|v| v.is_match(version)).unwrap_or(true)
     }
 
-    pub fn is_package_version_match(&self, package: S, version: S) -> bool {
-        self.package == package && self.is_version_match(version)
+    pub fn is_package_version_match<V: AsRef<str> + PartialEq>(
+        &self,
+        package: &V,
+        version: &V,
+    ) -> bool {
+        self.package.as_ref() == package.as_ref() && self.is_version_match(version)
     }
 }
 
@@ -410,8 +438,8 @@ mod test {
         fn package_and_version_only() {
             let ms: MatchSpec<String> = "tensorflow>1.9.2".parse().unwrap();
 
-            assert!(ms.is_package_version_match("tensorflow".to_string(), "1.9.3".to_string()));
-            assert!(!ms.is_package_version_match("tensorflow".to_string(), "1.9.0".to_string()));
+            assert!(ms.is_package_version_match(&"tensorflow", &"1.9.3"));
+            assert!(!ms.is_package_version_match(&"tensorflow", &"1.9.0"));
         }
 
         #[test]
