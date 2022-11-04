@@ -4,6 +4,7 @@ use nom::error::Error as NomError;
 use nom::Finish;
 use std::fmt::Debug;
 use std::str::FromStr;
+use serde::{Serialize, Deserialize};
 
 /// Enum that is used for representating the selector types.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -398,6 +399,8 @@ where
     }
 }
 
+
+
 impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
     /// Does simple &str equality matching against the package name
     /// ```
@@ -427,6 +430,53 @@ impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
         version: &V,
     ) -> bool {
         self.package.as_ref() == package.as_ref() && self.is_version_match(version)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct PackageCandidate {
+    build: String,
+    build_number: u32,
+    depends: Vec<String>,
+    license: String,
+    md5: String,
+    name: String,
+    sha256: String,
+    size: u64,
+    subdir: String,
+    timestamp: u64,
+    version: String,
+}
+
+impl<S> From<S> for PackageCandidate
+    where
+        S: AsRef<str>,
+{
+    fn from(s: S) -> Self {
+        let package_candidate: PackageCandidate = serde_json::from_str(s.as_ref()).unwrap();
+        package_candidate
+    }
+}
+
+impl<S> PackageCandidate
+    where
+        S: AsRef<str> + PartialEq + PartialOrd + Into<String>,
+{
+    fn is_match(ms: MatchSpec<S>) -> bool {
+        todo!()
+    }
+}
+
+impl MatchSpec<String> {
+    fn is_match(pc: PackageCandidate) -> bool {
+        todo!()
+    }
+}
+
+impl From<PackageCandidate> for MatchSpec<String> {
+    fn from(_: PackageCandidate) -> Self {
+        MatchSpec::
+        todo!()
     }
 }
 
@@ -488,6 +538,29 @@ mod test {
             assert!(!or.is_match(&"1.2.1"));
             assert!(!or.is_match(&"1.1.1"));
             assert!(!or.is_match(&"1.1.7"));
+        }
+
+        #[test]
+        fn package_candidate_mathing() {
+            let payload = r#"{
+                      "build": "py35h14c3975_1",
+                      "build_number": 1,
+                      "depends": [
+                        "libgcc-ng >=7.2.0",
+                        "python >=3.5,<3.6.0a0",
+                        "toolz >=0.8.0"
+                      ],
+                      "license": "BSD 3-Clause",
+                      "md5": "1a563b8915106d64c48aef84f10b8387",
+                      "name": "cytoolz",
+                      "sha256": "78854881cf33182140deb0f9c8c8a0c8670c0680ec8c07352754707323732f5e",
+                      "size": 423273,
+                      "subdir": "linux-64",
+                      "timestamp": 1534356589107,
+                      "version": "0.9.0.1"
+                    }"#;
+
+            PackageCandidate::from(payload);
         }
     }
 }
