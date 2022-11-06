@@ -5,7 +5,6 @@ use nom::Finish;
 use std::fmt::Debug;
 use std::str::FromStr;
 use serde::{Serialize, Deserialize};
-use serde::de::Unexpected::Option;
 
 /// Enum that is used for representating the selector types.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -436,17 +435,17 @@ impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct PackageCandidate {
-    build: String,
-    build_number: u32,
+    build: Option<String>,
+    build_number: Option<u32>,
     depends: Vec<String>,
-    license: String,
-    md5: String,
-    name: String,
-    sha256: String,
-    size: u64,
-    subdir: String,
-    timestamp: u64,
-    version: String,
+    license: Option<String>,
+    md5: Option<String>,
+    name: Option<String>,
+    sha256: Option<String>,
+    size: Option<u64>,
+    subdir: Option<String>,
+    timestamp: Option<u64>,
+    version: Option<String>,
 }
 
 impl<S> From<S> for PackageCandidate
@@ -459,23 +458,20 @@ impl<S> From<S> for PackageCandidate
     }
 }
 
-impl<S> PackageCandidate
-    where
-        S: AsRef<str> + PartialEq + PartialOrd + Into<String>, // TODO: do I need extra generic here?
-{
-    fn is_match(&self, ms: &MatchSpec<S>) -> bool {
-        let self_ms: MatchSpec<S> = self.to_match_spec();
+impl PackageCandidate {
+    fn is_match(&self, ms: &MatchSpec<String>) -> bool {
+        let self_ms: MatchSpec<String> = self.to_match_spec();
         self_ms.eq(ms)
     }
 
-    fn to_match_spec(&self) -> MatchSpec<S> {
+    fn to_match_spec(&self) -> MatchSpec<String> {
         MatchSpec {
-            package: &self.name,
-            version: Some(&self.version),
-            subdir: Some(&self.subdir),
+            package: self.name.clone().unwrap(),
+            version: self.version.as_ref().map(|s| CompoundSelector::Single { selector: Selector::EqualTo, version: s.into() }),
+            subdir: self.subdir.clone(),
             namespace: None, //TODO: how to get namespace from repodata.json?
             channel: None, //TODO: how to get namespace from repodata.json?
-            build: Some(&self.build),
+            build: self.build.clone(),
             key_value_pairs: Vec::new(),
         }
     }
@@ -566,8 +562,8 @@ mod test {
                       "timestamp": 1534356589107,
                       "version": "0.9.0.1"
                     }"#;
-
-            PackageCandidate::from(payload);
+            let ms: MatchSpec<String> = "tensorflow".parse().unwrap();
+            assert!(!PackageCandidate::from(payload).is_match(&ms))
         }
     }
 }
