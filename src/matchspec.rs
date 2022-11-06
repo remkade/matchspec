@@ -5,6 +5,7 @@ use nom::Finish;
 use std::fmt::Debug;
 use std::str::FromStr;
 use serde::{Serialize, Deserialize};
+use serde::de::Unexpected::Option;
 
 /// Enum that is used for representating the selector types.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -460,23 +461,29 @@ impl<S> From<S> for PackageCandidate
 
 impl<S> PackageCandidate
     where
-        S: AsRef<str> + PartialEq + PartialOrd + Into<String>,
+        S: AsRef<str> + PartialEq + PartialOrd + Into<String>, // TODO: do I need extra generic here?
 {
-    fn is_match(ms: MatchSpec<S>) -> bool {
-        todo!()
+    fn is_match(&self, ms: &MatchSpec<S>) -> bool {
+        let self_ms: MatchSpec<S> = self.to_match_spec();
+        self_ms.eq(ms)
+    }
+
+    fn to_match_spec(&self) -> MatchSpec<S> {
+        MatchSpec {
+            package: &self.name,
+            version: Some(&self.version),
+            subdir: Some(&self.subdir),
+            namespace: None, //TODO: how to get namespace from repodata.json?
+            channel: None, //TODO: how to get namespace from repodata.json?
+            build: Some(&self.build),
+            key_value_pairs: Vec::new(),
+        }
     }
 }
 
 impl MatchSpec<String> {
-    fn is_match(pc: PackageCandidate) -> bool {
-        todo!()
-    }
-}
-
-impl From<PackageCandidate> for MatchSpec<String> {
-    fn from(_: PackageCandidate) -> Self {
-        MatchSpec::
-        todo!()
+    fn is_match(&self, pc: PackageCandidate) -> bool {
+        pc.is_match(self)
     }
 }
 
