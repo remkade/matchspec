@@ -6,18 +6,33 @@ use std::fmt::Debug;
 use std::str::FromStr;
 
 /// Matches a string with a string (possibly) containing globs
-fn is_match_glob_str(glob_str: &str, package: &str) -> bool {
+fn is_match_glob_str(glob_str: &str, match_str: &str) -> bool {
     let mut index: Option<usize> = Some(0);
     let mut it = glob_str.split("*").peekable();
     while let Some(part) = it.next() {
-        index = package.get(index.unwrap()..).and_then(|s| s.find(part));
-        if index == None || (it.peek().is_none() && !package.ends_with(part)) {
+        index = match_str.get(index.unwrap()..).and_then(|s| s.find(part));
+        if index == None || (it.peek().is_none() && !match_str.ends_with(part)) {
             return false;
         }
     }
     true
 }
 
+fn is_match_glob_str_cond(glob_str: &str, match_str: &str) -> bool {
+    if glob_str.contains("*") {
+        let mut index: Option<usize> = Some(0);
+        let mut it = glob_str.split("*").peekable();
+        while let Some(part) = it.next() {
+            index = match_str.get(index.unwrap()..).and_then(|s| s.find(part));
+            if index == None || (it.peek().is_none() && !match_str.ends_with(part)) {
+                return false;
+            }
+        }
+        return true;
+    } else {
+        return glob_str == match_str;
+    }
+}
 
 /// Enum that is used for representating the selector types.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -514,6 +529,14 @@ mod test {
             assert!(!or.is_match(&"1.2.1"));
             assert!(!or.is_match(&"1.1.1"));
             assert!(!or.is_match(&"1.1.7"));
+        }
+
+        #[test]
+        fn glob_benchmark() {
+            assert!(is_match_glob_str(&"tensorflow", "tensorflow"));
+            assert!(is_match_glob_str(&"tensorflow-*", "tensorflow-gpu"));
+            assert!(is_match_glob_str_cond(&"tensorflow", "tensorflow"));
+            assert!(is_match_glob_str_cond(&"tensorflow-*", "tensorflow-gpu"));
         }
     }
 }
