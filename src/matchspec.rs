@@ -413,7 +413,7 @@ where
 }
 
 impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
-    /// Does simple &str equality matching against the package name
+    /// Matches package names. The matchspec package may contain globs
     /// ```
     /// use ::matchspec::*;
     ///
@@ -421,7 +421,7 @@ impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
     /// assert!(ms.is_package_match("openssl".to_string()));
     /// ```
     pub fn is_package_match(&self, package: S) -> bool {
-        self.package == package
+        is_match_glob_str(self.package.as_ref(), package.as_ref())
     }
 
     /// Uses the Selector embedded in the matchspec to do a match on only a version
@@ -440,7 +440,7 @@ impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
         package: &V,
         version: &V,
     ) -> bool {
-        self.package.as_ref() == package.as_ref() && self.is_version_match(version)
+        is_match_glob_str(self.package.as_ref(), package.as_ref()) && self.is_version_match(version)
     }
 }
 
