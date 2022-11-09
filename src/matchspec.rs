@@ -5,6 +5,20 @@ use nom::Finish;
 use std::fmt::Debug;
 use std::str::FromStr;
 
+/// Matches a string with a string (possibly) containing globs
+fn is_match_glob_str(glob_str: &str, package: &str) -> bool {
+    let mut index: Option<usize> = Some(0);
+    let mut it = glob_str.split("*").peekable();
+    while let Some(part) = it.next() {
+        index = package.get(index.unwrap()..).and_then(|s| s.find(part));
+        if index == None || (it.peek().is_none() && !package.ends_with(part)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+
 /// Enum that is used for representating the selector types.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Selector {
