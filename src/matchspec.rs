@@ -15,7 +15,7 @@ fn is_match_glob_str(glob_str: &str, package: &str) -> bool {
             return false;
         }
     }
-    return true;
+    true
 }
 
 
