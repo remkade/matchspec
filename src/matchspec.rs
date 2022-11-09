@@ -433,14 +433,16 @@ impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+
+#[derive(Serialize, Deserialize, Debug, Default)]
 struct PackageCandidate {
+    name: Option<String>,
     build: Option<String>,
     build_number: Option<u32>,
+    #[serde(default="Vec::new")]
     depends: Vec<String>,
     license: Option<String>,
     md5: Option<String>,
-    name: Option<String>,
     sha256: Option<String>,
     size: Option<u64>,
     subdir: Option<String>,
@@ -547,23 +549,13 @@ mod test {
         fn package_candidate_mathing() {
             let payload = r#"{
                       "build": "py35h14c3975_1",
-                      "build_number": 1,
-                      "depends": [
-                        "libgcc-ng >=7.2.0",
-                        "python >=3.5,<3.6.0a0",
-                        "toolz >=0.8.0"
-                      ],
-                      "license": "BSD 3-Clause",
-                      "md5": "1a563b8915106d64c48aef84f10b8387",
-                      "name": "cytoolz",
-                      "sha256": "78854881cf33182140deb0f9c8c8a0c8670c0680ec8c07352754707323732f5e",
-                      "size": 423273,
-                      "subdir": "linux-64",
-                      "timestamp": 1534356589107,
-                      "version": "0.9.0.1"
+                      "name": "python",
+                      "version": "3.10.4"
                     }"#;
-            let ms: MatchSpec<String> = "tensorflow".parse().unwrap();
-            assert!(!PackageCandidate::from(payload).is_match(&ms))
+
+            let ms: MatchSpec<String> = "python>3.10".parse().unwrap();
+            let candidate = PackageCandidate::from(payload);
+            assert!(candidate.is_match(&ms))
         }
     }
 }
