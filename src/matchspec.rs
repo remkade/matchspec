@@ -452,10 +452,22 @@ mod test {
 
         #[test]
         fn package_only() {
-            let ms: MatchSpec<String> = "tensorflow".parse().unwrap();
+            let mut ms: MatchSpec<String> = "tensorflow".parse().unwrap();
 
             assert!(ms.is_package_match("tensorflow".to_string()));
             assert!(!ms.is_package_match("pytorch".to_string()));
+
+            ms = "tensor*-gpu".parse().unwrap();
+            assert!(ms.is_package_match("tensorflow-gpu".to_string()));
+            assert!(!ms.is_package_match("tennnnsorflow-gpu".to_string()));
+
+            ms = "tensorflow*".parse().unwrap();
+            assert!(ms.is_package_match("tensorflow".to_string()));
+            assert!(ms.is_package_match("tensorflow-gpu".to_string()));
+
+            ms = "*-gpu".parse().unwrap();
+            assert!(ms.is_package_match("tensorflow-gpu".to_string()));
+            assert!(!ms.is_package_match("tensorflow".to_string()));
         }
 
         #[test]
