@@ -1,4 +1,5 @@
 use crate::parsers::*;
+use crate::package_candidate::*;
 use nom::branch::alt;
 use nom::error::Error as NomError;
 use nom::Finish;
@@ -398,6 +399,8 @@ where
     }
 }
 
+
+
 impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
     /// Does simple &str equality matching against the package name
     /// ```
@@ -427,6 +430,16 @@ impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
         version: &V,
     ) -> bool {
         self.package.as_ref() == package.as_ref() && self.is_version_match(version)
+    }
+}
+
+impl MatchSpec<String> {
+    pub fn is_match(&self, pc: &PackageCandidate) -> bool {
+        self.is_package_version_match(
+            &pc.name,
+            &pc.version.as_ref().unwrap_or(&String::new()))
+            && self.subdir == pc.subdir
+            && self.build == self.build
     }
 }
 
