@@ -1,10 +1,10 @@
 use crate::parsers::*;
+use crate::package_candidate::*;
 use nom::branch::alt;
 use nom::error::Error as NomError;
 use nom::Finish;
 use std::fmt::Debug;
 use std::str::FromStr;
-use serde::{Serialize, Deserialize};
 
 /// Enum that is used for representating the selector types.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -434,45 +434,12 @@ impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
 }
 
 impl MatchSpec<String> {
-    fn is_match(&self, pc: &PackageCandidate) -> bool {
+    pub fn is_match(&self, pc: &PackageCandidate) -> bool {
         self.is_package_version_match(
             &pc.name,
             &pc.version.as_ref().unwrap())
-            && self.subdir == pc.subdir.clone()
-            && self.build == self.build.clone()
-    }
-}
-
-
-#[derive(Serialize, Deserialize, Debug, Default)]
-struct PackageCandidate {
-    name: String,
-    build: Option<String>,
-    build_number: Option<u32>,
-    #[serde(default = "Vec::new")]
-    depends: Vec<String>,
-    license: Option<String>,
-    md5: Option<String>,
-    sha256: Option<String>,
-    size: Option<u64>,
-    subdir: Option<String>,
-    timestamp: Option<u64>,
-    version: Option<String>,
-}
-
-impl<S> From<S> for PackageCandidate
-    where
-        S: AsRef<str>,
-{
-    fn from(s: S) -> Self {
-        let package_candidate: PackageCandidate = serde_json::from_str(s.as_ref()).unwrap();
-        package_candidate
-    }
-}
-
-impl PackageCandidate {
-    fn is_match(&self, ms: &MatchSpec<String>) -> bool {
-        ms.is_match(&self)
+            && self.subdir == pc.subdir
+            && self.build == self.build
     }
 }
 
@@ -534,22 +501,6 @@ mod test {
             assert!(!or.is_match(&"1.2.1"));
             assert!(!or.is_match(&"1.1.1"));
             assert!(!or.is_match(&"1.1.7"));
-        }
-
-        #[test]
-        fn package_candidate_mathing() {
-            let payload = r#"{
-                      "build": "py35h14c3975_1",
-                      "name": "python",
-                      "version": "3.10.4"
-                    }"#;
-
-            let ms: MatchSpec<String> = "python>3.10".parse().unwrap();
-            let candidate = PackageCandidate::from(payload);
-            assert!(ms.is_match(&candidate));
-
-            let ms_less: MatchSpec<String> = "python<3.10".parse().unwrap();
-            assert!(!candidate.is_match(&ms_less))
         }
     }
 }
