@@ -1,34 +1,15 @@
 use crate::matchspec::*;
+use crate::input_table::*;
 use nom::error::Error as NomError;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while, take_while1},
-    character::complete::{alphanumeric0, alphanumeric1, char, multispace0, multispace1, one_of},
-    character::{is_alphabetic, is_digit},
+    character::complete::{alphanumeric0, alphanumeric1, satisfy, multispace0, multispace1, one_of},
     combinator::{complete, eof, opt, peek},
     multi::separated_list0,
     sequence::{delimited, terminated, tuple},
     IResult,
 };
-
-/// Tests for alphanumeric with dashes, underscores, or periods
-pub(crate) fn is_alphanumeric_with_dashes(c: char) -> bool {
-    is_alphabetic(c as u8) || is_digit(c as u8) || c == '-' || c == '_'
-}
-
-/// Tests for alphanumeric with dashes, underscores, or periods
-pub(crate) fn is_alphanumeric_with_dashes_or_period(c: char) -> bool {
-    is_alphanumeric_with_dashes(c) || c == '.'
-}
-
-// Allows any of the following character classes:
-// * alphanumeric: `A-Za-z0-9`
-// * Periods: `.`
-// * dashes or underscores: `-`, `_`
-// * glob character (asterisk): `*`
-pub(crate) fn is_any_valid_str_with_glob(c: char) -> bool {
-    is_alphanumeric_with_dashes_or_period(c) || c == '*'
-}
 
 /// Parses a version selector. Possible values:
 /// | Selector | Function                                                                   |
@@ -78,7 +59,7 @@ fn version_and_selector_parser(s: &str) -> IResult<&str, (&str, &str)> {
 pub(crate) fn compound_selector_parser(s: &str) -> IResult<&str, CompoundSelector<String>> {
     let result = tuple((
         version_and_selector_parser,
-        delimited(multispace0, one_of(",|"), multispace0),
+        delimited(multispace0, satisfy(is_comma_or_alt), multispace0),
         version_and_selector_parser,
     ))(s);
 
@@ -100,9 +81,9 @@ pub(crate) fn channel_parser(s: &str) -> IResult<&str, &str> {
 /// `key=value`
 pub(crate) fn key_value_pair_parser(s: &str) -> IResult<&str, (&str, &str, &str)> {
     let value_parser = delimited(
-        opt(one_of("'\"")),
+        opt(satisfy(is_quote)),
         take_while1(is_alphanumeric_with_dashes),
-        opt(one_of("'\"")),
+        opt(complete(satisfy(is_quote))),
     );
 
     delimited(
@@ -140,19 +121,19 @@ pub(crate) fn implicit_matchspec_parser(s: &str) -> IResult<&str, MatchSpec<Stri
 pub(crate) fn full_matchspec_parser(s: &str) -> IResult<&str, MatchSpec<String>, NomError<&str>> {
     // Eats `/subdir`
     let subdir_parser = delimited(
-        char('/'),
+        satisfy(is_forward_slash),
         take_while(is_alphanumeric_with_dashes),
-        peek(char(':')),
+        peek(satisfy(is_colon)),
     );
 
     // Eats `:namespace:`
-    let namespace_parser = delimited(char(':'), alphanumeric0, char(':'));
+    let namespace_parser = delimited(satisfy(is_colon), alphanumeric0, satisfy(is_colon));
 
     // Eats `[ .. ]`
     let keys_vec_parser = delimited(
-        char('['),
-        separated_list0(char(','), key_value_pair_parser),
-        char(']'),
+        satisfy(is_left_bracket),
+        separated_list0(satisfy(is_comma), key_value_pair_parser),
+        satisfy(is_right_bracket),
     );
 
     // Put all the parsers together

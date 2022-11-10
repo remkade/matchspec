@@ -1,5 +1,6 @@
 use crate::parsers::*;
 use crate::package_candidate::*;
+use crate::input_table::*;
 use nom::branch::alt;
 use nom::error::Error as NomError;
 use nom::Finish;
