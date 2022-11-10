@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61.0", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rust_matchspec"
+version = "1.0"
+description = "A conda matchspec written in Rust"
+requires-python = ">=3.7"
+dependencies = ["maturin"]
+
+[tools.setuptools]
+py_modules=["rust_matchspec"]
+
+[project.entry-points.conda]
+rust_matchspec = "matchspec_in_rust"

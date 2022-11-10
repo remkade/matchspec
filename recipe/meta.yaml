@@ -1,0 +1,24 @@
+package:
+  name: rust_matchspec
+  version: 0.1.0
+
+source:
+  path: ../
+
+build:
+  script: $PYTHON -m pip install --no-deps .
+  skip: true #[py<37]
+
+requirements:
+  host:
+    - python
+    - maturin
+
+  run:
+    - python
+
+about:
+  home: https://github.com/remkade/matchspec
+  license: BSD-3-Clause
+  license_file: LICENSE
+  summary: A conda matchspec written in Rust
