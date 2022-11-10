@@ -1,4 +1,5 @@
 use crate::parsers::*;
+use crate::package_candidate::*;
 use nom::branch::alt;
 use nom::error::Error as NomError;
 use nom::Finish;
@@ -411,6 +412,8 @@ where
     }
 }
 
+
+
 impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
     /// Matches package names. The matchspec package may contain globs
     /// ```
@@ -443,6 +446,16 @@ impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
         package.as_ref().chars().all(is_alphanumeric_with_dashes)
             && is_match_glob_str(self.package.as_ref(), package.as_ref())
             && self.is_version_match(version)
+    }
+}
+
+impl MatchSpec<String> {
+    pub fn is_match(&self, pc: &PackageCandidate) -> bool {
+        self.is_package_version_match(
+            &pc.name,
+            &pc.version.as_ref().unwrap_or(&String::new()))
+            && self.subdir == pc.subdir
+            && self.build == self.build
     }
 }
 
