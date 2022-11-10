@@ -7,14 +7,15 @@ source:
 
 build:
   script: $PYTHON -m pip install --no-deps .
+  skip: true #[py<37]
 
 requirements:
   host:
-    - python >=3.7
+    - python
+    - maturin
 
   run:
-    - python >=3.7
-    - maturin
+    - python
 
 about:
   home: https://github.com/remkade/matchspec
