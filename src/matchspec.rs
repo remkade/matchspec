@@ -430,7 +430,7 @@ impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
     /// assert!(ms.is_package_match("openssl".to_string()));
     /// ```
     pub fn is_package_match(&self, package: S) -> bool {
-        all_chars_legal(package.as_ref())
+        all_chars_legal(package.as_ref(), &is_alphanumeric_with_dashes)
             && is_match_glob_str(self.package.as_ref(), package.as_ref())
     }
 
