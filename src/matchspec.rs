@@ -433,13 +433,23 @@ impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
     }
 }
 
+impl MatchSpec<String> {
+    fn is_match(&self, pc: PackageCandidate) -> bool {
+        self.is_package_version_match(
+            &pc.name,
+            &pc.version.unwrap())
+            && self.subdir == pc.subdir
+            && self.build == self.build
+    }
+}
+
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 struct PackageCandidate {
-    name: Option<String>,
+    name: String,
     build: Option<String>,
     build_number: Option<u32>,
-    #[serde(default="Vec::new")]
+    #[serde(default = "Vec::new")]
     depends: Vec<String>,
     license: Option<String>,
     md5: Option<String>,
@@ -461,27 +471,8 @@ impl<S> From<S> for PackageCandidate
 }
 
 impl PackageCandidate {
-    fn is_match(&self, ms: &MatchSpec<String>) -> bool {
-        let self_ms: MatchSpec<String> = self.to_match_spec();
-        self_ms.eq(ms)
-    }
-
-    fn to_match_spec(&self) -> MatchSpec<String> {
-        MatchSpec {
-            package: self.name.clone().unwrap(),
-            version: self.version.as_ref().map(|s| CompoundSelector::Single { selector: Selector::EqualTo, version: s.into() }),
-            subdir: self.subdir.clone(),
-            namespace: None, //TODO: how to get namespace from repodata.json?
-            channel: None, //TODO: how to get namespace from repodata.json?
-            build: self.build.clone(),
-            key_value_pairs: Vec::new(),
-        }
-    }
-}
-
-impl MatchSpec<String> {
-    fn is_match(&self, pc: PackageCandidate) -> bool {
-        pc.is_match(self)
+    fn is_match(self, ms: &MatchSpec<String>) -> bool {
+        ms.is_match(self)
     }
 }
 
