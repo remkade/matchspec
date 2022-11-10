@@ -434,12 +434,12 @@ impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
 }
 
 impl MatchSpec<String> {
-    fn is_match(&self, pc: PackageCandidate) -> bool {
+    fn is_match(&self, pc: &PackageCandidate) -> bool {
         self.is_package_version_match(
             &pc.name,
-            &pc.version.unwrap())
-            && self.subdir == pc.subdir
-            && self.build == self.build
+            &pc.version.as_ref().unwrap())
+            && self.subdir == pc.subdir.clone()
+            && self.build == self.build.clone()
     }
 }
 
@@ -471,8 +471,8 @@ impl<S> From<S> for PackageCandidate
 }
 
 impl PackageCandidate {
-    fn is_match(self, ms: &MatchSpec<String>) -> bool {
-        ms.is_match(self)
+    fn is_match(&self, ms: &MatchSpec<String>) -> bool {
+        ms.is_match(&self)
     }
 }
 
@@ -546,7 +546,10 @@ mod test {
 
             let ms: MatchSpec<String> = "python>3.10".parse().unwrap();
             let candidate = PackageCandidate::from(payload);
-            assert!(candidate.is_match(&ms))
+            assert!(ms.is_match(&candidate));
+
+            let ms_less: MatchSpec<String> = "python<3.10".parse().unwrap();
+            assert!(!candidate.is_match(&ms_less))
         }
     }
 }
