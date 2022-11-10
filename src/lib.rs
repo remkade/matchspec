@@ -9,7 +9,7 @@ use pyo3::wrap_pyfunction;
 
 #[pyfunction]
 fn match_against_matchspec(matchspec: String, package: String, version: String) -> bool {
-  let ms: matchspec::MatchSpec<String> = matchspec.parse();
+  let ms: matchspec::MatchSpec<String> = matchspec.parse().unwrap();
   ms.is_package_version_match(&package, &version)
 }
 
