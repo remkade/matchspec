@@ -5,6 +5,7 @@ use crate::matchspec::*;
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct PackageCandidate {
     pub name: String,
+    pub version: Option<String>,
     pub build: Option<String>,
     pub build_number: Option<u32>,
     #[serde(default = "Vec::new")]
@@ -15,7 +16,6 @@ pub struct PackageCandidate {
     pub size: Option<u64>,
     pub subdir: Option<String>,
     pub timestamp: Option<u64>,
-    pub version: Option<String>,
 }
 
 impl<S> From<S> for PackageCandidate
@@ -38,23 +38,27 @@ impl PackageCandidate {
 mod test {
     #[cfg(test)]
     mod package_candidate {
-        use crate::matchspec::*;
         use crate::package_candidate::*;
 
         #[test]
-        fn package_candidate_mathing() {
+        fn package_candidate_match() {
             let payload = r#"{
-                      "build": "py35h14c3975_1",
-                      "name": "python",
-                      "version": "3.10.4"
-                    }"#;
-
-            let ms: MatchSpec<String> = "python>3.10".parse().unwrap();
+                  "build_number": 1,
+                  "license": "GPL",
+                  "md5": "md5xyz",
+                  "name": "python",
+                  "sha256": "sha256xyz",
+                  "size": 423273,
+                  "subdir": "linux-64",
+                  "timestamp": 1534356589107,
+                  "version": "3.10.4"
+                }"#;
+            let ms: MatchSpec<String> = "main/linux-64::python>3.10".parse().unwrap();
             let candidate = PackageCandidate::from(payload);
             assert!(ms.is_match(&candidate));
 
-            let ms_less: MatchSpec<String> = "python<3.10".parse().unwrap();
-            assert!(!candidate.is_match(&ms_less))
+            let ms: MatchSpec<String> = "main/linux-64::python<3.10".parse().unwrap();
+            assert!(!candidate.is_match(&ms))
         }
     }
 }

@@ -437,7 +437,7 @@ impl MatchSpec<String> {
     pub fn is_match(&self, pc: &PackageCandidate) -> bool {
         self.is_package_version_match(
             &pc.name,
-            &pc.version.as_ref().unwrap())
+            &pc.version.as_ref().unwrap_or(&String::new()))
             && self.subdir == pc.subdir
             && self.build == self.build
     }
