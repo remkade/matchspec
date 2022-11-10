@@ -12,12 +12,12 @@ use nom::{
 };
 
 /// Tests for alphanumeric with dashes, underscores, or periods
-fn is_alphanumeric_with_dashes(c: char) -> bool {
+pub(crate) fn is_alphanumeric_with_dashes(c: char) -> bool {
     is_alphabetic(c as u8) || is_digit(c as u8) || c == '-' || c == '_'
 }
 
 /// Tests for alphanumeric with dashes, underscores, or periods
-fn is_alphanumeric_with_dashes_or_period(c: char) -> bool {
+pub(crate) fn is_alphanumeric_with_dashes_or_period(c: char) -> bool {
     is_alphanumeric_with_dashes(c) || c == '.'
 }
 
@@ -26,7 +26,7 @@ fn is_alphanumeric_with_dashes_or_period(c: char) -> bool {
 // * Periods: `.`
 // * dashes or underscores: `-`, `_`
 // * glob character (asterisk): `*`
-fn is_any_valid_str_with_glob(c: char) -> bool {
+pub(crate) fn is_any_valid_str_with_glob(c: char) -> bool {
     is_alphanumeric_with_dashes_or_period(c) || c == '*'
 }
 

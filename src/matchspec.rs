@@ -6,6 +6,19 @@ use nom::Finish;
 use std::fmt::Debug;
 use std::str::FromStr;
 
+/// Matches a string with a string (possibly) containing globs
+fn is_match_glob_str(glob_str: &str, match_str: &str) -> bool {
+    let mut index: Option<usize> = Some(0);
+    let mut it = glob_str.split("*").peekable();
+    while let Some(part) = it.next() {
+        index = match_str.get(index.unwrap()..).and_then(|s| s.find(part));
+        if index == None || (it.peek().is_none() && !match_str.ends_with(part)) {
+            return false;
+        }
+    }
+    true
+}
+
 /// Enum that is used for representating the selector types.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Selector {
@@ -402,7 +415,7 @@ where
 
 
 impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
-    /// Does simple &str equality matching against the package name
+    /// Matches package names. The matchspec package may contain globs
     /// ```
     /// use ::matchspec::*;
     ///
@@ -410,7 +423,8 @@ impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
     /// assert!(ms.is_package_match("openssl".to_string()));
     /// ```
     pub fn is_package_match(&self, package: S) -> bool {
-        self.package == package
+        package.as_ref().chars().all(is_alphanumeric_with_dashes)
+            && is_match_glob_str(self.package.as_ref(), package.as_ref())
     }
 
     /// Uses the Selector embedded in the matchspec to do a match on only a version
@@ -429,7 +443,9 @@ impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
         package: &V,
         version: &V,
     ) -> bool {
-        self.package.as_ref() == package.as_ref() && self.is_version_match(version)
+        package.as_ref().chars().all(is_alphanumeric_with_dashes)
+            && is_match_glob_str(self.package.as_ref(), package.as_ref())
+            && self.is_version_match(version)
     }
 }
 
@@ -451,10 +467,25 @@ mod test {
 
         #[test]
         fn package_only() {
-            let ms: MatchSpec<String> = "tensorflow".parse().unwrap();
+            let mut ms: MatchSpec<String> = "tensorflow".parse().unwrap();
 
             assert!(ms.is_package_match("tensorflow".to_string()));
             assert!(!ms.is_package_match("pytorch".to_string()));
+
+            ms = "tensor*-gpu".parse().unwrap();
+            assert!(ms.is_package_match("tensorflow-gpu".to_string()));
+            assert!(!ms.is_package_match("tennnnsorflow-gpu".to_string()));
+
+            ms = "tensorflow*".parse().unwrap();
+            assert!(ms.is_package_match("tensorflow".to_string()));
+            assert!(ms.is_package_match("tensorflow-gpu".to_string()));
+
+            ms = "*-gpu".parse().unwrap();
+            assert!(ms.is_package_match("tensorflow-gpu".to_string()));
+            assert!(!ms.is_package_match("tensorflow".to_string()));
+
+            // Illegal chars
+            assert!(!ms.is_package_match("python>3.10[name=* vmd5=\"abcdef1312\"]".to_string()));
         }
 
         #[test]
