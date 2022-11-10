@@ -20,12 +20,7 @@ fn is_match_glob_str(glob_str: &str, match_str: &str) -> bool {
 
 /// Tests a string for forbidden characters
 fn all_chars_legal(input: &str, char_valid: &dyn Fn(char) -> bool) -> bool {
-    for c in input.chars() {
-        if !char_valid(c) {
-            return false;
-        }
-    }
-    true
+  input.chars().all(char_valid)
 }
 
 /// Enum that is used for representating the selector types.
