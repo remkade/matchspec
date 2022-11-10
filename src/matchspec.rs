@@ -18,6 +18,16 @@ fn is_match_glob_str(glob_str: &str, match_str: &str) -> bool {
     true
 }
 
+/// Tests a string for forbidden characters
+fn all_chars_legal(input: &str, char_valid: &dyn Fn(char) -> bool) -> bool {
+    for c in input.chars() {
+        if !char_valid(c) {
+            return false;
+        }
+    }
+    true
+}
+
 /// Enum that is used for representating the selector types.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Selector {
@@ -420,7 +430,8 @@ impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
     /// assert!(ms.is_package_match("openssl".to_string()));
     /// ```
     pub fn is_package_match(&self, package: S) -> bool {
-        is_match_glob_str(self.package.as_ref(), package.as_ref())
+        all_chars_legal(package.as_ref())
+            && is_match_glob_str(self.package.as_ref(), package.as_ref())
     }
 
     /// Uses the Selector embedded in the matchspec to do a match on only a version
@@ -439,7 +450,9 @@ impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
         package: &V,
         version: &V,
     ) -> bool {
-        is_match_glob_str(self.package.as_ref(), package.as_ref()) && self.is_version_match(version)
+        all_chars_legal(package.as_ref(), &is_alphanumeric_with_dashes)
+            && is_match_glob_str(self.package.as_ref(), package.as_ref())
+            && self.is_version_match(version)
     }
 }
 
@@ -467,6 +480,9 @@ mod test {
             ms = "*-gpu".parse().unwrap();
             assert!(ms.is_package_match("tensorflow-gpu".to_string()));
             assert!(!ms.is_package_match("tensorflow".to_string()));
+
+            // Illegal chars
+            assert!(!ms.is_package_match("python>3.10[name=* vmd5=\"abcdef1312\"]".to_string()));
         }
 
         #[test]
