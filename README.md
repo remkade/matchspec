@@ -40,7 +40,8 @@ This library contains benchmarks aimed at checking the speed of our implementati
 These benchmarks use [Criterion.rs](https://bheisler.github.io/criterion.rs/book/criterion_rs.html) to provide the benchmarking framework. Its pretty easy to run the benchmarks on stable rust:
 
 ```bash
-cargo bench
+cargo bench --no-default-features
 ```
+**Note:** You must use `--no-default-features` because including the `pyo3` depedencies will cause the build to fail with a benchmark target.
 
 This will automatically track benchmark timings across runs. If you do this on a laptop or workstation be aware that you may have regressions show up if you have background processes or other things happening. I would recommend always running the benchmarks at a similar level of CPU load. If you want consistent testing its probably best to quit your browser or anything in the background that might be eating CPU or doing IO.
