@@ -7,7 +7,7 @@ A Conda MatchSpec implementation in pure Rust. This allows you to parse a matchs
 The way you instantiate a MatchSpec is by parsing a string into the type:
 
 ```rust
-use matchspec::MatchSpec;
+use rust_matchspec::{CompoundSelector, MatchSpec, Selector};
 
 // Create the MatchSpec by parsing a String or &str
 let matchspec: MatchSpec<String> = "main/linux-64::pytorch>1.10.2".parse().unwrap();
@@ -20,8 +20,8 @@ assert_eq!(&matchspec.package, "pytorch");
 assert_eq!(matchspec.channel, Some("main".to_string()));
 assert_eq!(
 	matchspec.version,
-	Some(matchspec::CompoundSelector::Single {
-		selector: matchspec::Selector::GreaterThan,
+	Some(CompoundSelector::Single {
+		selector: Selector::GreaterThan,
 		version: "1.10.2".to_string(),
 	})
 );
@@ -40,7 +40,9 @@ This library contains benchmarks aimed at checking the speed of our implementati
 These benchmarks use [Criterion.rs](https://bheisler.github.io/criterion.rs/book/criterion_rs.html) to provide the benchmarking framework. Its pretty easy to run the benchmarks on stable rust:
 
 ```bash
-cargo bench
-```
+cargo bench 
 
+# Or if you're on mac and get errors with Invalid Symbols:
+cargo bench --no-default-features
+```
 This will automatically track benchmark timings across runs. If you do this on a laptop or workstation be aware that you may have regressions show up if you have background processes or other things happening. I would recommend always running the benchmarks at a similar level of CPU load. If you want consistent testing its probably best to quit your browser or anything in the background that might be eating CPU or doing IO.

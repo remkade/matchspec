@@ -30,7 +30,7 @@ impl<S> From<S> for PackageCandidate
 
 impl PackageCandidate {
     pub fn is_match(&self, ms: &MatchSpec<String>) -> bool {
-        ms.is_match(&self)
+        ms.is_match(self)
     }
 }
 
