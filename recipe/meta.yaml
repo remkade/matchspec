@@ -6,16 +6,26 @@ source:
   path: ../
 
 build:
-  script: $PYTHON -m pip install --no-deps .
+  number: 0
   skip: true #[py<37]
 
 requirements:
+  build:
+    - {{ compiler('rust') }}  # [not win]
+    - rust_win-64  # [win]
   host:
     - python
     - maturin
-
   run:
     - python
+
+test:
+  imports:
+    - rust_matchspec
+  requires:
+    - pip
+  commands:
+    - pip check
 
 about:
   home: https://github.com/remkade/matchspec
