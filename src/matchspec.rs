@@ -99,7 +99,7 @@ impl Default for CompoundSelector<String> {
 
 /// Create a selector from a parser tuple:
 /// ```
-/// use matchspec::{Selector, CompoundSelector};
+/// use rust_matchspec::{Selector, CompoundSelector};
 ///
 /// let cs = CompoundSelector::from((">", "1.1.1"));
 /// assert_eq!(cs, CompoundSelector::Single{
@@ -140,7 +140,7 @@ where
 {
     /// This takes a versions and tests that it falls within the constraints of this CompoundSelector
     /// ```
-    ///  use matchspec::{Selector, CompoundSelector};
+    ///  use rust_matchspec::{Selector, CompoundSelector};
     ///
     ///  let single = CompoundSelector::Single {
     ///     selector: Selector::GreaterThan,
@@ -206,7 +206,7 @@ where
 
 /// Create a selector from a parser tuple:
 /// ```
-/// use matchspec::{Selector, CompoundSelector};
+/// use rust_matchspec::{Selector, CompoundSelector};
 ///
 /// let cs = CompoundSelector::from((">", "1.1.1", ",", "<", "3.0.0"));
 /// assert_eq!(cs, CompoundSelector::And{
@@ -418,7 +418,7 @@ where
 impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
     /// Matches package names. The matchspec package may contain globs
     /// ```
-    /// use ::matchspec::*;
+    /// use rust_matchspec::matchspec::*;
     ///
     /// let ms: MatchSpec<String> = "openssl>1.1.1a".parse().unwrap();
     /// assert!(ms.is_package_match("openssl".to_string()));
@@ -430,7 +430,7 @@ impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
 
     /// Uses the Selector embedded in the matchspec to do a match on only a version
     /// ```
-    /// use ::matchspec::*;
+    /// use rust_matchspec::matchspec::*;
     ///
     /// let ms: MatchSpec<String> = "openssl>1.1.1a".parse().unwrap();
     /// assert!(ms.is_version_match(&"1.1.1r"));
