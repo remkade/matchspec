@@ -6,6 +6,7 @@ use nom::error::Error as NomError;
 use nom::Finish;
 use std::fmt::Debug;
 use std::str::FromStr;
+use version_compare::{compare_to, Cmp};
 
 /// Matches a string with a string (possibly) containing globs
 fn is_match_glob_str(glob_str: &str, match_str: &str) -> bool {
@@ -50,13 +51,32 @@ where
 impl Selector {
     pub fn boolean_operator(&self) -> fn(&str, &str) -> bool {
         match self {
-            Selector::EqualTo => str::eq,
-            Selector::NotEqualTo => str::ne,
-            Selector::LessThan => str::lt,
-            Selector::LessThanOrEqualTo => str::le,
-            Selector::GreaterThan => str::gt,
-            Selector::GreaterThanOrEqualTo => str::ge,
+            Selector::EqualTo => Selector::eq,
+            Selector::NotEqualTo => Selector::ne,
+            Selector::LessThan => Selector::lt,
+            Selector::LessThanOrEqualTo => Selector::le,
+            Selector::GreaterThan => Selector::gt,
+            Selector::GreaterThanOrEqualTo => Selector::ge,
         }
+    }
+    fn eq(a: &str, b: &str) -> bool {
+        compare_to(a, b, Cmp::Eq).unwrap()
+    }
+
+    fn ne(a: &str, b: &str) -> bool {
+        compare_to(a, b, Cmp::Ne).unwrap()
+    }
+    fn lt(a: &str, b: &str) -> bool {
+        compare_to(a, b, Cmp::Lt).unwrap()
+    }
+    fn le(a: &str, b: &str) -> bool {
+        compare_to(a, b, Cmp::Le).unwrap()
+    }
+    fn gt(a: &str, b: &str) -> bool {
+        compare_to(a, b, Cmp::Gt).unwrap()
+    }
+    fn ge(a: &str, b: &str) -> bool {
+        compare_to(a, b, Cmp::Ge).unwrap()
     }
 }
 
@@ -533,6 +553,15 @@ mod test {
             assert!(!or.is_match(&"1.2.1"));
             assert!(!or.is_match(&"1.1.1"));
             assert!(!or.is_match(&"1.1.7"));
+        }
+
+        #[test]
+        fn test_version_compare() {
+            let ms: MatchSpec<String> = "python>3.6".parse().unwrap();
+            assert!(!ms.is_package_version_match(&"python", &"3.5"));
+            assert!(ms.is_package_version_match(&"python", &"3.8"));
+            assert!(ms.is_package_version_match(&"python", &"3.9"));
+            assert!(ms.is_package_version_match(&"python", &"3.10"));
         }
     }
 }
