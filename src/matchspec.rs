@@ -60,23 +60,23 @@ impl Selector {
         }
     }
     fn eq(a: &str, b: &str) -> bool {
-        compare_to(a, b, Cmp::Eq).unwrap()
+        compare_to(a, b, Cmp::Eq)?
     }
 
     fn ne(a: &str, b: &str) -> bool {
-        compare_to(a, b, Cmp::Ne).unwrap()
+        compare_to(a, b, Cmp::Ne)?
     }
     fn lt(a: &str, b: &str) -> bool {
-        compare_to(a, b, Cmp::Lt).unwrap()
+        compare_to(a, b, Cmp::Lt)?
     }
     fn le(a: &str, b: &str) -> bool {
-        compare_to(a, b, Cmp::Le).unwrap()
+        compare_to(a, b, Cmp::Le)?
     }
     fn gt(a: &str, b: &str) -> bool {
-        compare_to(a, b, Cmp::Gt).unwrap()
+        compare_to(a, b, Cmp::Gt)?
     }
     fn ge(a: &str, b: &str) -> bool {
-        compare_to(a, b, Cmp::Ge).unwrap()
+        compare_to(a, b, Cmp::Ge)?
     }
 }
 
