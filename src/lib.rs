@@ -19,7 +19,7 @@ use pyo3::wrap_pyfunction;
 #[pyo3(signature = (matchspec, package, version))]
 fn match_against_matchspec(matchspec: String, package: String, version: String) -> bool {
     let ms: matchspec::MatchSpec<String> = matchspec.parse().unwrap();
-    ms.is_package_version_match(&package, &version)
+    ms.is_package_version_match(&package, &version).unwrap()
 }
 
 #[cfg(feature = "python")]
