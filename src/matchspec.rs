@@ -475,8 +475,8 @@ impl MatchSpec<String> {
         self.is_package_version_match(
             &pc.name,
             &pc.version.as_ref().unwrap_or(&String::new()))
-            && self.subdir == pc.subdir
-            && self.build == self.build
+            && (self.subdir.is_none() || self.subdir == pc.subdir)
+            && (self.build.is_none() || self.build == pc.build)
     }
 }
 
