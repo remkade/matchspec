@@ -14,7 +14,7 @@ crate-type = ["lib", "cdylib"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
 nom = "7"
-pyo3 = { version = "0.18", features = ["extension-module"] }
+pyo3 = { version = "0.18", features = ["extension-module"], optinal = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 version-compare = "0.1"
@@ -25,7 +25,7 @@ criterion = "0.3"
 [features]
 default = ["python"]
 json = []
-python = []
+python = ["dep:pyo3"]
 
 [[bench]]
 name = "parsing"
