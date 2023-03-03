@@ -7,7 +7,7 @@ use crate::matchspec::*;
 #[pyo3(signature = (matchspec, package, version))]
 fn match_against_matchspec(matchspec: String, package: String, version: String) -> bool {
     let ms: MatchSpec<String> = matchspec.parse().unwrap();
-    ms.is_package_version_match(&package, &version).unwrap()
+    ms.is_package_version_match(&package, &version)
 }
 
 #[pymodule]

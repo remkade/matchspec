@@ -5,9 +5,8 @@ use nom::branch::alt;
 use nom::error::Error as NomError;
 use nom::Finish;
 use std::fmt::Debug;
-use std::slice::RSplit;
 use std::str::FromStr;
-use version_compare::{compare_to, Cmp};
+use version_compare::{compare_to, Cmp, Version};
 
 /// Matches a string with a string (possibly) containing globs
 fn is_match_glob_str(glob_str: &str, match_str: &str) -> bool {
@@ -50,7 +49,7 @@ impl<S> From<S> for Selector
 }
 
 impl Selector {
-    pub fn boolean_operator(&self) -> fn(&str, &str) -> Result<bool, ()> {
+    pub fn boolean_operator(&self) -> fn(&str, &str) -> bool {
         match self {
             Selector::EqualTo => Selector::eq,
             Selector::NotEqualTo => Selector::ne,
@@ -60,24 +59,24 @@ impl Selector {
             Selector::GreaterThanOrEqualTo => Selector::ge,
         }
     }
-    fn eq(a: &str, b: &str) -> Result<bool, ()> {
-        compare_to(a, b, Cmp::Eq)
+    fn eq(a: &str, b: &str) -> bool {
+        compare_to(a, b, Cmp::Eq).unwrap_or(false)
     }
 
-    fn ne(a: &str, b: &str) -> Result<bool, ()> {
-        compare_to(a, b, Cmp::Ne)
+    fn ne(a: &str, b: &str) -> bool {
+        compare_to(a, b, Cmp::Ne).unwrap_or(false)
     }
-    fn lt(a: &str, b: &str) -> Result<bool, ()> {
-        compare_to(a, b, Cmp::Lt)
+    fn lt(a: &str, b: &str) -> bool {
+        compare_to(a, b, Cmp::Lt).unwrap_or(false)
     }
-    fn le(a: &str, b: &str) -> Result<bool, ()> {
-        compare_to(a, b, Cmp::Le)
+    fn le(a: &str, b: &str) -> bool {
+        compare_to(a, b, Cmp::Le).unwrap_or(false)
     }
-    fn gt(a: &str, b: &str) -> Result<bool, ()> {
-        compare_to(a, b, Cmp::Gt)
+    fn gt(a: &str, b: &str) -> bool {
+        compare_to(a, b, Cmp::Gt).unwrap_or(false)
     }
-    fn ge(a: &str, b: &str) -> Result<bool, ()> {
-        compare_to(a, b, Cmp::Ge)
+    fn ge(a: &str, b: &str) -> bool {
+        compare_to(a, b, Cmp::Ge).unwrap_or(false)
     }
 }
 
@@ -198,10 +197,10 @@ impl<S> CompoundSelector<S>
     ///  assert!(!or.is_match(&"1.1.1"));
     ///  assert!(!or.is_match(&"1.1.7"));
     ///  ```
-    pub fn is_match<V: AsRef<str> + PartialEq>(&self, other: &V) -> Result<bool, ()> {
+    pub fn is_match<V: AsRef<str> + PartialEq>(&self, other: &V) -> bool {
         match self {
             CompoundSelector::Single { selector, version } => {
-                Ok(selector.boolean_operator()(other.as_ref(), version.as_ref())?)
+                selector.boolean_operator()(other.as_ref(), version.as_ref())
             }
             CompoundSelector::And {
                 first_selector,
@@ -209,8 +208,8 @@ impl<S> CompoundSelector<S>
                 second_selector,
                 second_version,
             } => {
-                Ok(first_selector.boolean_operator()(other.as_ref(), first_version.as_ref())?
-                    && second_selector.boolean_operator()(other.as_ref(), second_version.as_ref())?)
+                first_selector.boolean_operator()(other.as_ref(), first_version.as_ref())
+                    && second_selector.boolean_operator()(other.as_ref(), second_version.as_ref())
             }
             CompoundSelector::Or {
                 first_selector,
@@ -218,8 +217,8 @@ impl<S> CompoundSelector<S>
                 second_selector,
                 second_version,
             } => {
-                Ok(first_selector.boolean_operator()(other.as_ref(), first_version.as_ref())?
-                    || second_selector.boolean_operator()(other.as_ref(), second_version.as_ref())?)
+                first_selector.boolean_operator()(other.as_ref(), first_version.as_ref())
+                    || second_selector.boolean_operator()(other.as_ref(), second_version.as_ref())
             }
         }
     }
@@ -455,30 +454,28 @@ impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
     /// let ms: MatchSpec<String> = "openssl>1.1.1a".parse().unwrap();
     /// assert!(ms.is_version_match(&"1.1.1r"));
     /// ```
-    pub fn is_version_match<V: AsRef<str> + PartialEq>(&self, version: &V) -> Result<bool, ()> {
-        self.version.as_ref().map(|v| v.is_match(version)).ok_or(())?
+    pub fn is_version_match<V: AsRef<str> + PartialEq>(&self, version: &V) -> bool {
+        self.version.as_ref().map(|v| v.is_match(version)).unwrap_or(true)
     }
 
     pub fn is_package_version_match<V: AsRef<str> + PartialEq>(
         &self,
         package: &V,
         version: &V,
-    ) -> Result<bool, ()> {
-        let version_match = self.is_version_match(version)?;
-        Ok(package.as_ref().chars().all(is_alphanumeric_with_dashes)
+    ) -> bool {
+        package.as_ref().chars().all(is_alphanumeric_with_dashes)
             && is_match_glob_str(self.package.as_ref(), package.as_ref())
-            && version_match)
+            && self.is_version_match(version)
     }
 }
 
 impl MatchSpec<String> {
-    pub fn is_match(&self, pc: &PackageCandidate) -> Result<bool, ()> {
-        let package_version_match = self.is_package_version_match(
+    pub fn is_match(&self, pc: &PackageCandidate) -> bool {
+        self.is_package_version_match(
             &pc.name,
-            &pc.version.as_ref().unwrap_or(&String::new()))?;
-        Ok(package_version_match
+            &pc.version.as_ref().unwrap_or(&String::new()))
             && (self.subdir.is_none() || self.subdir == pc.subdir)
-            && (self.build.is_none() || self.build == pc.build))
+            && (self.build.is_none() || self.build == pc.build)
     }
 }
 
@@ -515,8 +512,8 @@ mod test {
         fn package_and_version_only() {
             let ms: MatchSpec<String> = "tensorflow>1.9.2".parse().unwrap();
 
-            assert!(ms.is_package_version_match(&"tensorflow", &"1.9.3").unwrap());
-            assert!(!ms.is_package_version_match(&"tensorflow", &"1.9.0").unwrap());
+            assert!(ms.is_package_version_match(&"tensorflow", &"1.9.3"));
+            assert!(!ms.is_package_version_match(&"tensorflow", &"1.9.0"));
         }
 
         #[test]
@@ -526,10 +523,10 @@ mod test {
                 version: "1.1.1",
             };
 
-            assert!(single.is_match(&"1.2.1").unwrap());
-            assert!(single.is_match(&"3.0.0").unwrap());
-            assert!(!single.is_match(&"1.1.1").unwrap());
-            assert!(!single.is_match(&"0.1.1").unwrap());
+            assert!(single.is_match(&"1.2.1"));
+            assert!(single.is_match(&"3.0.0"));
+            assert!(!single.is_match(&"1.1.1"));
+            assert!(!single.is_match(&"0.1.1"));
 
             let and = CompoundSelector::And {
                 first_selector: Selector::GreaterThan,
@@ -538,10 +535,10 @@ mod test {
                 second_version: "1.2.1",
             };
 
-            assert!(and.is_match(&"1.2.1").unwrap());
-            assert!(and.is_match(&"1.1.7").unwrap());
-            assert!(!and.is_match(&"1.2.2").unwrap());
-            assert!(!and.is_match(&"0.1.1").unwrap());
+            assert!(and.is_match(&"1.2.1"));
+            assert!(and.is_match(&"1.1.7"));
+            assert!(!and.is_match(&"1.2.2"));
+            assert!(!and.is_match(&"0.1.1"));
 
             let or = CompoundSelector::Or {
                 first_selector: Selector::LessThan,
@@ -550,20 +547,20 @@ mod test {
                 second_version: "1.2.1",
             };
 
-            assert!(or.is_match(&"3.0.0").unwrap());
-            assert!(or.is_match(&"0.1.1").unwrap());
-            assert!(!or.is_match(&"1.2.1").unwrap());
-            assert!(!or.is_match(&"1.1.1").unwrap());
-            assert!(!or.is_match(&"1.1.7").unwrap());
+            assert!(or.is_match(&"3.0.0"));
+            assert!(or.is_match(&"0.1.1"));
+            assert!(!or.is_match(&"1.2.1"));
+            assert!(!or.is_match(&"1.1.1"));
+            assert!(!or.is_match(&"1.1.7"));
         }
 
         #[test]
         fn test_version_compare() {
             let ms: MatchSpec<String> = "python>3.6".parse().unwrap();
-            assert!(!ms.is_package_version_match(&"python", &"3.5").unwrap());
-            assert!(ms.is_package_version_match(&"python", &"3.8").unwrap());
-            assert!(ms.is_package_version_match(&"python", &"3.9").unwrap());
-            assert!(ms.is_package_version_match(&"python", &"3.10").unwrap());
+            assert!(!ms.is_package_version_match(&"python", &"3.5"));
+            assert!(ms.is_package_version_match(&"python", &"3.8"));
+            assert!(ms.is_package_version_match(&"python", &"3.9"));
+            assert!(ms.is_package_version_match(&"python", &"3.10"));
         }
     }
 }

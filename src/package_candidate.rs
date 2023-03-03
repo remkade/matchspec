@@ -29,7 +29,7 @@ impl<S> From<S> for PackageCandidate
 }
 
 impl PackageCandidate {
-    pub fn is_match(&self, ms: &MatchSpec<String>) -> Result<bool, ()> {
+    pub fn is_match(&self, ms: &MatchSpec<String>) -> bool {
         ms.is_match(self)
     }
 }
@@ -55,10 +55,10 @@ mod test {
                 }"#;
             let ms: MatchSpec<String> = "main/linux-64::python>3.10".parse().unwrap();
             let candidate = PackageCandidate::from(payload);
-            assert!(ms.is_match(&candidate).unwrap());
+            assert!(ms.is_match(&candidate));
 
             let ms: MatchSpec<String> = "main/linux-64::python<3.10".parse().unwrap();
-            assert!(!candidate.is_match(&ms).unwrap())
+            assert!(!candidate.is_match(&ms))
         }
     }
 }
