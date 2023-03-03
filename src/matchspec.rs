@@ -6,7 +6,7 @@ use nom::error::Error as NomError;
 use nom::Finish;
 use std::fmt::Debug;
 use std::str::FromStr;
-use version_compare::{compare_to, Cmp, Version};
+use version_compare::{compare_to, Cmp};
 
 /// Matches a string with a string (possibly) containing globs
 fn is_match_glob_str(glob_str: &str, match_str: &str) -> bool {
