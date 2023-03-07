@@ -7,6 +7,7 @@ use nom::Finish;
 use std::fmt::Debug;
 use std::str::FromStr;
 use version_compare::{compare_to, Cmp};
+use crate::error::MatchSpecError;
 
 /// Matches a string with a string (possibly) containing globs
 fn is_match_glob_str(glob_str: &str, match_str: &str) -> bool {
@@ -328,14 +329,11 @@ impl Default for MatchSpec<String> {
 
 /// This is where we actually do the parsing
 impl FromStr for MatchSpec<String> {
-    type Err = NomError<String>;
+    type Err = MatchSpecError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match alt((implicit_matchspec_parser, full_matchspec_parser))(s).finish() {
             Ok((_, ms)) => Ok(ms),
-            Err(NomError { input, code }) => Err(NomError {
-                input: String::from(input),
-                code,
-            }),
+            Err(NomError { input, code: _ }) => Err(MatchSpecError { message: String::from(input) }),
         }
     }
 }

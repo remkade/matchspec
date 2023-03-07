@@ -325,7 +325,7 @@ mod test {
     }
 
     mod final_parser {
-        use nom::error::{ErrorKind, Error};
+        use crate::error::MatchSpecError;
         use crate::matchspec::*;
 
         #[test]
@@ -347,7 +347,7 @@ mod test {
 
         #[test]
         fn package_only() {
-            let result: Result<MatchSpec<String>, nom::error::Error<String>> = "tensorflow".parse();
+            let result: Result<MatchSpec<String>, MatchSpecError> = "tensorflow".parse();
 
             let ms = result.unwrap();
             assert_eq!(ms.subdir, None);
@@ -426,7 +426,7 @@ mod test {
 
         #[test]
         fn package_and_version_with_key_values() {
-            let result: Result<MatchSpec<String>, nom::error::Error<String>> =
+            let result: Result<MatchSpec<String>, MatchSpecError> =
                 "tensorflow>1[subdir!=win-64]".parse();
 
             let ms = result.unwrap();
@@ -453,7 +453,7 @@ mod test {
 
         #[test]
         fn package_only_with_key_values() {
-            let result: Result<MatchSpec<String>, nom::error::Error<String>> =
+            let result: Result<MatchSpec<String>, MatchSpecError> =
                 "tensorflow[subdir=win-64]".parse();
 
             let ms = result.unwrap();
@@ -519,11 +519,8 @@ mod test {
 
         #[test]
         fn fail_on_wrong_semver_version() {
-            let ms: Result<MatchSpec<String>, Error<String>> = "python=wrong".parse();
-            assert_eq!(ms, Err(Error {
-                code: ErrorKind::Fail,
-                input: "Version parse failed".to_string(),
-            }))
+            let ms: Result<MatchSpec<String>, MatchSpecError> = "python=wrong".parse();
+            assert_eq!(ms, Err(MatchSpecError { message: "Version parse failed".to_string() }))
         }
     }
 
