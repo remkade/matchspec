@@ -4,7 +4,7 @@ requires = ["maturin<=0.13,<0.14"]
 
 [project]
 name = "rust_matchspec"
-version = "0.1.0"
+version = "0.1.1"
 description = "A conda matchspec written in Rust"
 requires-python = ">=3.7"
 
