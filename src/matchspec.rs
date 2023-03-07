@@ -140,6 +140,7 @@ impl<S, V> From<(S, V)> for CompoundSelector<String>
     }
 }
 
+
 impl<S, V> From<((S, V), char, (S, V))> for CompoundSelector<String>
     where
         S: Into<Selector>,
@@ -153,6 +154,7 @@ impl<S, V> From<((S, V), char, (S, V))> for CompoundSelector<String>
         }
     }
 }
+
 
 impl<S> CompoundSelector<S>
     where
