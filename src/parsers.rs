@@ -50,9 +50,9 @@ pub(crate) fn name_parser(s: &str) -> IResult<&str, &str> {
 
 /// Parses the package version
 pub(crate) fn version_parser(s: &str) -> IResult<&str, &str> {
-    let (reminder, version) = take_while1(is_any_valid_str_with_glob)(s)?;
+    let (remainder, version) = take_while1(is_any_valid_str_with_glob)(s)?;
     match Version::from(version) {
-        Some(_) => { Ok((reminder, version)) }
+        Some(_) => { Ok((remainder, version)) }
         None => {
             Err(nom::Err::Failure(NomError {
                 code: ErrorKind::Fail,
