@@ -9,7 +9,7 @@ impl Error for MatchSpecError {}
 
 impl Display for MatchSpecError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, self.message)
+        write!(f, "{}", self.message)
     }
 }
 
