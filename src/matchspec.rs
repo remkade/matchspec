@@ -1,21 +1,21 @@
-use crate::parsers::*;
-use crate::package_candidate::*;
+use crate::error::MatchSpecError;
 use crate::input_table::*;
+use crate::package_candidate::*;
+use crate::parsers::*;
 use nom::branch::alt;
 use nom::error::Error as NomError;
 use nom::Finish;
 use std::fmt::Debug;
 use std::str::FromStr;
 use version_compare::{compare_to, Cmp};
-use crate::error::MatchSpecError;
 
 /// Matches a string with a string (possibly) containing globs
 fn is_match_glob_str(glob_str: &str, match_str: &str) -> bool {
     let mut index: Option<usize> = Some(0);
-    let mut it = glob_str.split("*").peekable();
+    let mut it = glob_str.split('*').peekable();
     while let Some(part) = it.next() {
         index = match_str.get(index.unwrap()..).and_then(|s| s.find(part));
-        if index == None || (it.peek().is_none() && !match_str.ends_with(part)) {
+        if index.is_none() || (it.peek().is_none() && !match_str.ends_with(part)) {
             return false;
         }
     }
@@ -34,8 +34,8 @@ pub enum Selector {
 }
 
 impl<S> From<S> for Selector
-    where
-        S: AsRef<str>,
+where
+    S: AsRef<str>,
 {
     fn from(value: S) -> Self {
         match value.as_ref() {
@@ -88,8 +88,8 @@ impl Selector {
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CompoundSelector<S>
-    where
-        S: Into<String> + AsRef<str>,
+where
+    S: Into<String> + AsRef<str>,
 {
     Single {
         selector: Selector,
@@ -129,9 +129,9 @@ impl Default for CompoundSelector<String> {
 /// });
 /// ```
 impl<S, V> From<(S, V)> for CompoundSelector<String>
-    where
-        S: Into<Selector>,
-        V: Into<String>,
+where
+    S: Into<Selector>,
+    V: Into<String>,
 {
     fn from(input: (S, V)) -> Self {
         CompoundSelector::Single {
@@ -141,11 +141,10 @@ impl<S, V> From<(S, V)> for CompoundSelector<String>
     }
 }
 
-
 impl<S, V> From<((S, V), char, (S, V))> for CompoundSelector<String>
-    where
-        S: Into<Selector>,
-        V: Into<String>,
+where
+    S: Into<Selector>,
+    V: Into<String>,
 {
     fn from((one, boolean, two): ((S, V), char, (S, V))) -> Self {
         match boolean {
@@ -156,10 +155,9 @@ impl<S, V> From<((S, V), char, (S, V))> for CompoundSelector<String>
     }
 }
 
-
 impl<S> CompoundSelector<S>
-    where
-        S: AsRef<str> + PartialEq + Into<String>,
+where
+    S: AsRef<str> + PartialEq + Into<String>,
 {
     /// This takes a versions and tests that it falls within the constraints of this CompoundSelector
     /// ```
@@ -240,9 +238,9 @@ impl<S> CompoundSelector<S>
 /// });
 /// ```
 impl<S, V> From<(S, V, V, S, V)> for CompoundSelector<String>
-    where
-        S: Into<Selector>,
-        V: Into<String> + AsRef<str> + PartialEq + std::fmt::Display,
+where
+    S: Into<Selector>,
+    V: Into<String> + AsRef<str> + PartialEq + std::fmt::Display,
 {
     fn from(
         (first_selector, first_version, joiner, second_selector, second_version): (S, V, V, S, V),
@@ -284,8 +282,8 @@ impl<S, V> From<(S, V, V, S, V)> for CompoundSelector<String>
 /// and [here](https://conda.io/projects/conda-build/en/latest/resources/package-spec.html#build-version-spec) in the spec
 #[derive(Debug, Clone, Eq)]
 pub struct MatchSpec<S>
-    where
-        S: AsRef<str> + PartialEq + PartialOrd + Into<String>,
+where
+    S: AsRef<str> + PartialEq + PartialOrd + Into<String>,
 {
     pub channel: Option<S>,
     pub subdir: Option<S>,
@@ -300,8 +298,8 @@ pub struct MatchSpec<S>
 /// If we don't know how to understand it, we should ignore the key value for the purpose of struct
 /// equality. Makes it simpler to handle potentially unknown future additions to the spec.
 impl<S> PartialEq for MatchSpec<S>
-    where
-        S: AsRef<str> + PartialEq + PartialOrd + Into<String>,
+where
+    S: AsRef<str> + PartialEq + PartialOrd + Into<String>,
 {
     fn eq(&self, other: &Self) -> bool {
         self.channel == other.channel
@@ -333,14 +331,16 @@ impl FromStr for MatchSpec<String> {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match alt((implicit_matchspec_parser, full_matchspec_parser))(s).finish() {
             Ok((_, ms)) => Ok(ms),
-            Err(NomError { input, code: _ }) => Err(MatchSpecError { message: String::from(input) }),
+            Err(NomError { input, code: _ }) => Err(MatchSpecError {
+                message: String::from(input),
+            }),
         }
     }
 }
 
 impl<S> From<(S, Option<S>, Option<S>)> for MatchSpec<String>
-    where
-        S: AsRef<str> + Into<String>,
+where
+    S: AsRef<str> + Into<String>,
 {
     fn from((package, version, build): (S, Option<S>, Option<S>)) -> Self {
         MatchSpec {
@@ -348,7 +348,10 @@ impl<S> From<(S, Option<S>, Option<S>)> for MatchSpec<String>
             subdir: None,
             namespace: None,
             package: package.into(),
-            version: version.map(|s| CompoundSelector::Single { selector: Selector::EqualTo, version: s.into() }),
+            version: version.map(|s| CompoundSelector::Single {
+                selector: Selector::EqualTo,
+                version: s.into(),
+            }),
             build: build.map(|s| s.into()),
             key_value_pairs: Vec::new(),
         }
@@ -356,16 +359,16 @@ impl<S> From<(S, Option<S>, Option<S>)> for MatchSpec<String>
 }
 
 impl<S>
-From<(
-    Option<S>,
-    Option<S>,
-    Option<S>,
-    S,
-    Option<CompoundSelector<String>>,
-    Option<Vec<(S, S, S)>>,
-)> for MatchSpec<String>
-    where
-        S: Into<String> + AsRef<str> + PartialEq + std::fmt::Display,
+    From<(
+        Option<S>,
+        Option<S>,
+        Option<S>,
+        S,
+        Option<CompoundSelector<String>>,
+        Option<Vec<(S, S, S)>>,
+    )> for MatchSpec<String>
+where
+    S: Into<String> + AsRef<str> + PartialEq + std::fmt::Display,
 {
     fn from(
         (channel, subdir, ns, package, cs, keys): (
@@ -433,7 +436,6 @@ From<(
     }
 }
 
-
 impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
     /// Matches package names. The matchspec package may contain globs
     /// ```
@@ -455,7 +457,10 @@ impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
     /// assert!(ms.is_version_match(&"1.1.1r"));
     /// ```
     pub fn is_version_match<V: AsRef<str> + PartialEq>(&self, version: &V) -> bool {
-        self.version.as_ref().map(|v| v.is_match(version)).unwrap_or(true)
+        self.version
+            .as_ref()
+            .map(|v| v.is_match(version))
+            .unwrap_or(true)
     }
 
     pub fn is_package_version_match<V: AsRef<str> + PartialEq>(
@@ -471,9 +476,7 @@ impl<S: AsRef<str> + PartialOrd + PartialEq<str> + Into<String>> MatchSpec<S> {
 
 impl MatchSpec<String> {
     pub fn is_match(&self, pc: &PackageCandidate) -> bool {
-        self.is_package_version_match(
-            &pc.name,
-            &pc.version.as_ref().unwrap_or(&String::new()))
+        self.is_package_version_match(&pc.name, pc.version.as_ref().unwrap_or(&String::new()))
             && (self.subdir.is_none() || self.subdir == pc.subdir)
             && (self.build.is_none() || self.build == pc.build)
     }
