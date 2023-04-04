@@ -4,3 +4,4 @@
 pvenv/*
 python/*
 main.py
+venv/*
