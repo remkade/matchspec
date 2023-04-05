@@ -2,6 +2,49 @@
 
 A Conda MatchSpec implementation in pure Rust. This allows you to parse a matchspec and validate it against a package to see if it matches.
 
+# Python Library
+
+## Example
+
+This library exposes a few simple functions:
+
+## `match_against_matchspec()`
+
+Takes a `matchspec` as a `str` and matches it against a `package_name` and `version` (both `str`). Returns a `bool`.
+
+``` python
+import rust_matchspec
+rust_matchspec.match_against_matchspec('python>=3.0', 'python', '3.10.1') # returns True
+```
+
+## `filter_package_list()`
+
+Takes a `list` of `dicts` and returns all the dicts inside that match a given matchspec. The `dicts` must have a `name` key with a `str` value, but all other fields are optional.
+
+```python
+import rust_matchspec
+list = [{'name': 'tensorflow', 'version': '2.10.0'}, {'name': 'pytorch', 'version': '2.0.0'}, {'name': 'pytorch', 'version': '1.11.1'}]
+rust_matchspec.filter_package_list('pytorch>1.12', list) # returns [PackageCandidate(name=pytorch)]
+```
+
+Possible keys:
+
+| Key          | Expected Type | Required? |
+|--------------|---------------|-----------|
+| name         | str           | yes       |
+| version      | str           |           |
+| build        | str           |           |
+| build_number | u32           |           |
+| depends      | [str]         |           |
+| license      | str           |           |
+| md5          | str           |           |
+| sha256       | str           |           |
+| size         | u64           |           |
+| subdir       | str           |           |
+| timestamp    | u64           |           |
+
+# Rust Library
+
 ## Example
 
 The way you instantiate a MatchSpec is by parsing a string into the type:
@@ -10,7 +53,7 @@ The way you instantiate a MatchSpec is by parsing a string into the type:
 use rust_matchspec::{CompoundSelector, MatchSpec, Selector};
 
 // Create the MatchSpec by parsing a String or &str
-let matchspec: MatchSpec<String> = "main/linux-64::pytorch>1.10.2".parse().unwrap();
+let matchspec: MatchSpec = "main/linux-64::pytorch>1.10.2".parse().unwrap();
 
 // You then have the data accessible inside the MatchSpec struct if you want it
 // Package name is the only mandatory field in a matchspec
