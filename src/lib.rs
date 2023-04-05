@@ -1,11 +1,10 @@
 #![doc = include_str ! ("../README.md")]
 
-pub mod matchspec;
-mod input_table;
-mod parsers;
-pub mod package_candidate;
 pub mod error;
-#[cfg(feature = "python")]
+mod input_table;
+pub mod matchspec;
+pub mod package_candidate;
+mod parsers;
 pub mod python;
 
 pub use crate::matchspec::*;
