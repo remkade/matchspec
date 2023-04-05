@@ -12,4 +12,3 @@ impl Display for MatchSpecError {
         write!(f, "{}", self.message)
     }
 }
-
