@@ -4,8 +4,6 @@ A Conda MatchSpec implementation in pure Rust. This allows you to parse a matchs
 
 # Python Library
 
-## Example
-
 This library exposes a few simple functions:
 
 ## `match_against_matchspec()`
@@ -23,7 +21,10 @@ Takes a `list` of `dicts` and returns all the dicts inside that match a given ma
 
 ```python
 import rust_matchspec
-list = [{'name': 'tensorflow', 'version': '2.10.0'}, {'name': 'pytorch', 'version': '2.0.0'}, {'name': 'pytorch', 'version': '1.11.1'}]
+list = [{'name': 'tensorflow', 'version': '2.10.0'},
+	{'name': 'pytorch', 'version': '2.0.0'},
+	{'name': 'pytorch', 'version': '1.11.1'}]
+
 rust_matchspec.filter_package_list('pytorch>1.12', list) # returns [PackageCandidate(name=pytorch)]
 ```
 
