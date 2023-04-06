@@ -1,0 +1,8 @@
+---
+name: rust_matchspec
+channels:
+  - defaults
+dependencies:
+  - conda
+  - pytest
+  - pytest-benchmark

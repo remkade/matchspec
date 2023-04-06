@@ -79,9 +79,31 @@ assert!(matchspec.is_package_version_match(&"pytorch", &"1.11.0"))
 
 This library contains benchmarks aimed at checking the speed of our implementation against other languages and ensure speed doesn't regress. This is a pure Rust benchmark so you'll need to view it with some skepticism if you want to compare this implementation against others. Benchmark harnesses and the data all need to be identical for a benchmark to really provide value.
 
-### Running the benchmarks
 
-These benchmarks use [Criterion.rs](https://bheisler.github.io/criterion.rs/book/criterion_rs.html) to provide the benchmarking framework. Its pretty easy to run the benchmarks on stable rust:
+### Python
+
+The Python benchmarks use [pytest-benchmark](https://pytest-benchmark.readthedocs.io/en/stable/).
+
+Steps to run the benchmarks:
+
+```bash
+# Setup the conda env
+conda env create -f ./environment.yml
+conda activate rust_matchspec
+
+# Build an optimized wheel
+maturin build --release
+
+# install it
+pip install ./target/rust_matchspec*.whl
+
+# Finally, run the benchmark
+pytest
+```
+
+### Rust
+
+The Rust benchmarks use [Criterion.rs](https://bheisler.github.io/criterion.rs/book/criterion_rs.html) to provide the benchmarking framework. Its pretty easy to run the benchmarks on stable rust:
 
 ```bash
 cargo bench 
