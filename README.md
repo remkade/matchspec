@@ -77,7 +77,7 @@ assert!(matchspec.is_package_version_match(&"pytorch", &"1.11.0"))
 
 ## Benchmarking
 
-This library contains benchmarks aimed at checking the speed of our implementation against other languages and ensure speed doesn't regress. This is a pure Rust benchmark so you'll need to view it with some skepticism if you want to compare this implementation against others. Benchmark harnesses and the data all need to be identical for a benchmark to really provide value.
+This library contains benchmarks aimed at checking the speed of our implementation against other languages and ensure speed doesn't regress. These are contrived benchmarks to test raw speed, so take them (and all benchmarks) with a bit of skepticism. Benchmark harnesses and the data all need to be identical for a benchmark to really provide value.
 
 
 ### Python
