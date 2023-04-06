@@ -95,7 +95,7 @@ conda activate rust_matchspec
 maturin build --release
 
 # install it
-pip install ./target/rust_matchspec*.whl
+pip install ./target/wheels/rust_matchspec*.whl
 
 # Finally, run the benchmark
 pytest
