@@ -1,16 +1,18 @@
-use crate::matchspec::*;
 use crate::input_table::*;
+use crate::matchspec::*;
 use nom::error::{Error as NomError, ErrorKind};
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while, take_while1},
-    character::complete::{alphanumeric0, alphanumeric1, satisfy, multispace0, multispace1, one_of},
+    character::complete::{
+        alphanumeric0, alphanumeric1, multispace0, multispace1, one_of, satisfy,
+    },
     combinator::{complete, eof, opt, peek},
     multi::separated_list0,
     sequence::{delimited, terminated, tuple},
     IResult,
 };
-use version_compare::{Version};
+use version_compare::Version;
 
 /// Parses a version selector. Possible values:
 /// | Selector | Function                                                                   |
@@ -52,13 +54,11 @@ pub(crate) fn name_parser(s: &str) -> IResult<&str, &str> {
 pub(crate) fn version_parser(s: &str) -> IResult<&str, &str> {
     let (remainder, version) = take_while1(is_any_valid_str_with_glob)(s)?;
     match Version::from(version) {
-        Some(_) => { Ok((remainder, version)) }
-        None => {
-            Err(nom::Err::Failure(NomError {
-                code: ErrorKind::Fail,
-                input: "Version parse failed",
-            }))
-        }
+        Some(_) => Ok((remainder, version)),
+        None => Err(nom::Err::Failure(NomError {
+            code: ErrorKind::Fail,
+            input: "Version parse failed",
+        })),
     }
 }
 
@@ -76,12 +76,10 @@ pub(crate) fn compound_selector_parser(s: &str) -> IResult<&str, CompoundSelecto
     // If we can parse via the more exhaustive parser, return that.
     match result {
         Ok((remainder, parsed)) => Ok((remainder, parsed.into())),
-        Err(_) => {
-            match version_and_selector_parser(s) {
-                Ok((remainder, parsed)) => Ok((remainder, parsed.into())),
-                Err(err) => Err(err),
-            }
-        }
+        Err(_) => match version_and_selector_parser(s) {
+            Ok((remainder, parsed)) => Ok((remainder, parsed.into())),
+            Err(err) => Err(err),
+        },
     }
 }
 
@@ -115,7 +113,7 @@ pub(crate) fn key_value_pair_parser(s: &str) -> IResult<&str, (&str, &str, &str)
 /// _libgcc_mutex 0.1 main
 /// backports_abc 0.5 py27h7b3c97b_0
 /// ```
-pub(crate) fn implicit_matchspec_parser(s: &str) -> IResult<&str, MatchSpec<String>> {
+pub(crate) fn implicit_matchspec_parser(s: &str) -> IResult<&str, MatchSpec> {
     let (remainder, t) = tuple((
         take_while1(is_alphanumeric_with_dashes_or_period),
         opt(delimited(multispace1, version_parser, multispace0)),
@@ -131,7 +129,7 @@ pub(crate) fn implicit_matchspec_parser(s: &str) -> IResult<&str, MatchSpec<Stri
 /// Assumes this format:
 /// `(channel(/subdir):(namespace):)name(version(build))[key1=value1,key2=value2]`
 /// Instead of using this directly please use the `"".parse()` style provided by FromStr
-pub(crate) fn full_matchspec_parser(s: &str) -> IResult<&str, MatchSpec<String>, NomError<&str>> {
+pub(crate) fn full_matchspec_parser(s: &str) -> IResult<&str, MatchSpec, NomError<&str>> {
     // Eats `/subdir`
     let subdir_parser = delimited(
         satisfy(is_forward_slash),
@@ -148,7 +146,6 @@ pub(crate) fn full_matchspec_parser(s: &str) -> IResult<&str, MatchSpec<String>,
         separated_list0(satisfy(is_comma), key_value_pair_parser),
         satisfy(is_right_bracket),
     );
-
 
     // Put all the parsers together
     let (remainder, t) = complete(tuple((
@@ -167,7 +164,7 @@ pub(crate) fn full_matchspec_parser(s: &str) -> IResult<&str, MatchSpec<String>,
 mod test {
     mod component_parsers {
         use crate::parsers::*;
-        use nom::error::{ErrorKind};
+        use nom::error::ErrorKind;
 
         #[test]
         fn test_channel_parser() {
@@ -231,11 +228,13 @@ mod test {
                 version_parser("2.9.1[subdir=linux]"),
                 Ok(("[subdir=linux]", "2.9.1"))
             );
-            assert_eq!(version_parser("not-correct-version"),
-                       Err(nom::Err::Failure(NomError {
-                           code: ErrorKind::Fail,
-                           input: "Version parse failed",
-                       })));
+            assert_eq!(
+                version_parser("not-correct-version"),
+                Err(nom::Err::Failure(NomError {
+                    code: ErrorKind::Fail,
+                    input: "Version parse failed",
+                }))
+            );
         }
 
         #[test]
@@ -330,7 +329,7 @@ mod test {
 
         #[test]
         fn simple_package_and_version() {
-            let base: MatchSpec<String> = MatchSpec::default();
+            let base: MatchSpec = MatchSpec::default();
             let expected = MatchSpec {
                 package: "tensorflow".to_string(),
                 version: Some(CompoundSelector::Single {
@@ -340,14 +339,14 @@ mod test {
                 ..base
             };
 
-            let ms: MatchSpec<String> = "tensorflow>=2.9.1".parse().unwrap();
+            let ms: MatchSpec = "tensorflow>=2.9.1".parse().unwrap();
 
             assert_eq!(ms, expected);
         }
 
         #[test]
         fn package_only() {
-            let result: Result<MatchSpec<String>, MatchSpecError> = "tensorflow".parse();
+            let result: Result<MatchSpec, MatchSpecError> = "tensorflow".parse();
 
             let ms = result.unwrap();
             assert_eq!(ms.subdir, None);
@@ -362,7 +361,7 @@ mod test {
         /// is the implicit: `tensorflow 2.9.1`. Both are supported, and they are equivalent.
         #[test]
         fn package_and_version_only() {
-            let base: MatchSpec<String> = MatchSpec::default();
+            let base: MatchSpec = MatchSpec::default();
 
             // Our output should look like this
             let expected = MatchSpec {
@@ -375,11 +374,11 @@ mod test {
             };
 
             // Test the explicit matcher first
-            let explicit: MatchSpec<String> = "tensorflow==2.9.1".parse().unwrap();
+            let explicit: MatchSpec = "tensorflow==2.9.1".parse().unwrap();
             assert_eq!(explicit, expected);
 
             // Test the implicit matcher second
-            let implicit: MatchSpec<String> = "tensorflow 2.9.1".parse().unwrap();
+            let implicit: MatchSpec = "tensorflow 2.9.1".parse().unwrap();
             assert_eq!(implicit, expected);
 
             // They should both be equal
@@ -406,7 +405,7 @@ mod test {
             };
 
             // Test the explicit matcher first
-            let explicit: MatchSpec<String> = "tensorflow==2.9.1[build=\"mkl_py39hb9fcb14_0\"]"
+            let explicit: MatchSpec = "tensorflow==2.9.1[build=\"mkl_py39hb9fcb14_0\"]"
                 .parse()
                 .unwrap();
 
@@ -414,8 +413,7 @@ mod test {
             assert_eq!(expected, explicit);
 
             // Test the implicit matcher second
-            let implicit: MatchSpec<String> =
-                "tensorflow 2.9.1 mkl_py39hb9fcb14_0".parse().unwrap();
+            let implicit: MatchSpec = "tensorflow 2.9.1 mkl_py39hb9fcb14_0".parse().unwrap();
 
             // Test against expected
             assert_eq!(expected, explicit);
@@ -426,8 +424,7 @@ mod test {
 
         #[test]
         fn package_and_version_with_key_values() {
-            let result: Result<MatchSpec<String>, MatchSpecError> =
-                "tensorflow>1[subdir!=win-64]".parse();
+            let result: Result<MatchSpec, MatchSpecError> = "tensorflow>1[subdir!=win-64]".parse();
 
             let ms = result.unwrap();
             assert_eq!(ms.subdir, None);
@@ -453,8 +450,7 @@ mod test {
 
         #[test]
         fn package_only_with_key_values() {
-            let result: Result<MatchSpec<String>, MatchSpecError> =
-                "tensorflow[subdir=win-64]".parse();
+            let result: Result<MatchSpec, MatchSpecError> = "tensorflow[subdir=win-64]".parse();
 
             let ms = result.unwrap();
             assert_eq!(ms.subdir, Some("win-64".to_string()));
@@ -474,7 +470,7 @@ mod test {
 
         #[test]
         fn everything_except_namespace() {
-            let ms: MatchSpec<String> = "main/linux-64::pytorch>1.10.2".parse().unwrap();
+            let ms: MatchSpec = "main/linux-64::pytorch>1.10.2".parse().unwrap();
 
             let expected = MatchSpec {
                 channel: Some("main".to_string()),
@@ -509,7 +505,7 @@ mod test {
                 key_value_pairs: Vec::new(),
             };
 
-            let ms: MatchSpec<String> =
+            let ms: MatchSpec =
                 "conda-forge/linux-64:UNUSED:tensorflow>2.9.1,<3.0.0[license=GPL, subdir=linux-64]"
                     .parse()
                     .unwrap();
@@ -519,8 +515,13 @@ mod test {
 
         #[test]
         fn fail_on_wrong_semver_version() {
-            let ms: Result<MatchSpec<String>, MatchSpecError> = "python=wrong".parse();
-            assert_eq!(ms, Err(MatchSpecError { message: "Version parse failed".to_string() }))
+            let ms: Result<MatchSpec, MatchSpecError> = "python=wrong".parse();
+            assert_eq!(
+                ms,
+                Err(MatchSpecError {
+                    message: "Version parse failed".to_string()
+                })
+            )
         }
     }
 
@@ -551,7 +552,7 @@ mod test {
                 .collect();
 
             for line in depends {
-                let _parsed: MatchSpec<String> = line
+                let _parsed: MatchSpec = line
                     .parse()
                     .unwrap_or_else(|_| panic!("Failed to parse: {}", line));
             }
