@@ -21,6 +21,10 @@ pub struct PackageCandidate {
     pub timestamp: Option<u64>,
 }
 
+// These are safe to assume because Option, String, and u64 are all Send/Sync
+unsafe impl Send for PackageCandidate {}
+unsafe impl Sync for PackageCandidate {}
+
 impl From<&str> for PackageCandidate {
     fn from(s: &str) -> Self {
         let package_candidate: PackageCandidate = serde_json::from_str(s).unwrap();
@@ -109,6 +113,13 @@ impl PackageCandidate {
                 .get_item("build_number")
                 .and_then(|i| PyAny::extract(i).ok()),
         })
+    }
+}
+
+impl TryFrom<&PyDict> for PackageCandidate {
+    type Error = PyErr;
+    fn try_from(value: &PyDict) -> Result<Self, Self::Error> {
+        PackageCandidate::from_dict(value)
     }
 }
 

@@ -15,7 +15,7 @@ requirements:
     - rust_win-64  # [win]
   host:
     - python
-    - maturin <=13.0,<14.0
+    - maturin <=14.0,<15.0
   run:
     - python
 
