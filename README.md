@@ -44,6 +44,38 @@ Possible keys:
 | subdir       | str           |           |
 | timestamp    | u64           |           |
 
+## `parallel_filter_package_list()`
+
+Using all available cores will take a `list` of `dicts` and returns all the dicts inside that match a given matchspec. The `dicts` must have a `name` key with a `str` value, but all other fields are optional.
+
+**Note** Probably won't show any noticable speed improvements until your list of packages is in the millions.
+
+```python
+import rust_matchspec
+list = [{'name': 'tensorflow', 'version': '2.10.0'},
+	{'name': 'pytorch', 'version': '2.0.0'},
+	{'name': 'pytorch', 'version': '1.11.1'}]
+
+rust_matchspec.parallel_filter_package_list('pytorch>1.12', list) # returns [PackageCandidate(name=pytorch)]
+```
+
+## `parallel_filter_package_list_with_matchspec_list()`
+
+Using all available cores will take a `list` of `dicts` and a `list` of Matchspecs (as `str`) and returns all the dicts inside that match any given matchspec. The `dicts` must have a `name` key with a `str` value, but all other fields are optional. **May contain duplicates** since it runs all of the matchspecs against the package list in parallel and does not dedup the resulting matches.
+
+In my testing this has a very small overhead, but matching 4 matchspecs is approximately the same speed as matching a single matchspec with the other functions.
+
+```python
+import rust_matchspec
+package_list = [{'name': 'tensorflow', 'version': '2.10.0'},
+	{'name': 'pytorch', 'version': '2.0.0'},
+	{'name': 'pytorch', 'version': '1.11.1'}]
+
+matchspec_list = ['python>=3.9.1', 'pytorch>1.12']
+
+rust_matchspec.parallel_filter_package_list_with_matchspec_list(matchspec_list, package_list) # returns [PackageCandidate(name=pytorch)]
+```
+
 # Rust Library
 
 ## Example
