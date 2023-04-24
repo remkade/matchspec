@@ -16,3 +16,10 @@ classifiers = [
 [tool.maturin]
 features = ["python"]
 python-source = "python"
+
+[tool.pytest.ini_options]
+markers = [
+	"slow: these tests take a while"
+]
+# Run with --benchmark-only to only do benchmarks
+addopts = ["--benchmark-skip"]

@@ -7,17 +7,28 @@ use std::fmt::Debug;
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct PackageCandidate {
+    #[pyo3(get, set)]
     pub name: String,
+    #[pyo3(get, set)]
     pub version: Option<String>,
+    #[pyo3(get, set)]
     pub build: Option<String>,
+    #[pyo3(get, set)]
     pub build_number: Option<u32>,
     #[serde(default = "Vec::new")]
+    #[pyo3(get, set)]
     pub depends: Vec<String>,
+    #[pyo3(get, set)]
     pub license: Option<String>,
+    #[pyo3(get, set)]
     pub md5: Option<String>,
+    #[pyo3(get, set)]
     pub sha256: Option<String>,
+    #[pyo3(get, set)]
     pub size: Option<u64>,
+    #[pyo3(get, set)]
     pub subdir: Option<String>,
+    #[pyo3(get, set)]
     pub timestamp: Option<u64>,
 }
 
@@ -94,23 +105,23 @@ impl PackageCandidate {
         Ok(PackageCandidate {
             name,
             version: get("version", dict),
-            build: get("version", dict),
+            build: get("build", dict),
             build_number: dict
                 .get_item("build_number")
                 .and_then(|i| PyAny::extract(i).ok()),
             depends: dict
-                .get_item("build_number")
+                .get_item("depends")
                 .and_then(|i| PyAny::extract::<Vec<String>>(i).ok())
                 .unwrap_or_default(),
-            license: get("version", dict),
-            md5: get("version", dict),
-            sha256: get("version", dict),
+            license: get("license", dict),
+            md5: get("md5", dict),
+            sha256: get("sha256", dict),
             size: dict
-                .get_item("build_number")
+                .get_item("size")
                 .and_then(|i| PyAny::extract(i).ok()),
-            subdir: get("version", dict),
+            subdir: get("subdir", dict),
             timestamp: dict
-                .get_item("build_number")
+                .get_item("timestamp")
                 .and_then(|i| PyAny::extract(i).ok()),
         })
     }
@@ -122,6 +133,7 @@ impl TryFrom<&PyDict> for PackageCandidate {
         PackageCandidate::from_dict(value)
     }
 }
+
 
 #[cfg(test)]
 mod test {

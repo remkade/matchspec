@@ -2,6 +2,7 @@ from conda.models.match_spec import MatchSpec
 from pathlib import Path
 import rust_matchspec
 import json
+import pytest
 
 test_data = Path('./test_data')
 depends_file = test_data / 'linux_64-depends.txt'
@@ -84,6 +85,7 @@ def test_rust_matchspec_parallel_filter_package_list_with_matchspec_list(benchma
     benchmark(bench, list=repodata)
 
 
+@pytest.mark.slow
 def test_conda_filter_package_list(benchmark):
     """
     Benchmark conda MatchSpec filtering all of the linux-64 repodata from
