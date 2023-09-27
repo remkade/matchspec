@@ -5,7 +5,7 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, take_while, take_while1},
     character::complete::{
-        alphanumeric0, alphanumeric1, multispace0, multispace1, one_of, satisfy,
+        alphanumeric0, multispace0, multispace1, one_of, satisfy,
     },
     combinator::{complete, eof, opt, peek},
     multi::separated_list0,
@@ -88,18 +88,40 @@ pub(crate) fn channel_parser(s: &str) -> IResult<&str, &str> {
     terminated(take_while(is_alphanumeric_with_dashes), peek(one_of(":/")))(s)
 }
 
+// Helper parser for key value parser
+pub(crate) fn value_parser(s: &str) -> IResult<&str, CompoundSelector<String>> {
+    let result = delimited(
+        multispace0,
+        take_while1(is_alphanumeric_with_dashes),
+        multispace0,
+    )(s);
+
+    match result {
+        Ok((remainder, parsed)) => Ok((remainder, CompoundSelector::from(("=", parsed)))),
+        Err(err) => Err(err),
+    }
+}
+
 /// Parses a single key_value_pair:
-/// `key=value`
-pub(crate) fn key_value_pair_parser(s: &str) -> IResult<&str, (&str, &str, &str)> {
+/// `key='value'`
+/// `key='>=value'`
+/// `key='<value'`
+//  'build='py_sfsafas_1''
+pub(crate) fn key_value_pair_parser(s: &str) -> IResult<&str, (&str, CompoundSelector<String>)> {
+    let name_parser = delimited(
+        multispace0,
+        take_while1(is_alphanumeric_with_dashes),
+        delimited(multispace0, tag("="), multispace0),
+    );
     let value_parser = delimited(
         opt(satisfy(is_quote)),
-        take_while1(is_alphanumeric_with_dashes),
+        alt((compound_selector_parser, value_parser)),
         opt(complete(satisfy(is_quote))),
     );
 
     delimited(
         multispace0,
-        tuple((alphanumeric1, selector_parser, value_parser)),
+        tuple((name_parser, value_parser)),
         multispace0,
     )(s)
 }
@@ -242,24 +264,24 @@ mod test {
             // Ensure we handle quoting
             assert_eq!(
                 key_value_pair_parser("subdir = 'linux-64'"),
-                Ok(("", ("subdir", "=", "linux-64"))),
+                Ok(("", ("subdir", CompoundSelector::from(("=", "linux-64"))))),
             );
 
             assert_eq!(
                 key_value_pair_parser("subdir = \"linux-64\""),
-                Ok(("", ("subdir", "=", "linux-64"))),
+                Ok(("", ("subdir", CompoundSelector::from(("=", "linux-64"))))),
             );
 
             // Also work without quoting
             assert_eq!(
                 key_value_pair_parser("subdir = linux-64"),
-                Ok(("", ("subdir", "=", "linux-64"))),
+                Ok(("", ("subdir", CompoundSelector::from(("=", "linux-64"))))),
             );
 
             // Whitespace shouldn't matter
             assert_eq!(
                 key_value_pair_parser("subdir=linux-64"),
-                Ok(("", ("subdir", "=", "linux-64"))),
+                Ok(("", ("subdir", CompoundSelector::from(("=", "linux-64"))))),
             );
         }
 
@@ -401,6 +423,7 @@ mod test {
                 build: Some("mkl_py39hb9fcb14_0".to_string()),
                 channel: None,
                 subdir: None,
+                build_number: None,
                 namespace: None,
             };
 
@@ -424,7 +447,7 @@ mod test {
 
         #[test]
         fn package_and_version_with_key_values() {
-            let result: Result<MatchSpec, MatchSpecError> = "tensorflow>1[subdir!=win-64]".parse();
+            let result: Result<MatchSpec, MatchSpecError> = "tensorflow>1[subdir='!=win-64']".parse();
 
             let ms = result.unwrap();
             assert_eq!(ms.subdir, None);
@@ -442,15 +465,17 @@ mod test {
                 ms.key_value_pairs.get(0),
                 Some(&(
                     "subdir".to_string(),
-                    Selector::NotEqualTo,
-                    "win-64".to_string(),
+                    CompoundSelector::Single {
+                        selector: Selector::NotEqualTo,
+                        version: "win-64".to_string(),
+                    }
                 ))
             );
         }
 
         #[test]
         fn package_only_with_key_values() {
-            let result: Result<MatchSpec, MatchSpecError> = "tensorflow[subdir=win-64]".parse();
+            let result: Result<MatchSpec, MatchSpecError> = "tensorflow[subdir='win-64']".parse();
 
             let ms = result.unwrap();
             assert_eq!(ms.subdir, Some("win-64".to_string()));
@@ -462,8 +487,10 @@ mod test {
                 ms.key_value_pairs.get(0),
                 Some(&(
                     "subdir".to_string(),
-                    Selector::EqualTo,
-                    "win-64".to_string(),
+                    CompoundSelector::Single {
+                        selector: Selector::EqualTo,
+                        version: "win-64".to_string(),
+                    }
                 ))
             );
         }
@@ -478,6 +505,7 @@ mod test {
                 namespace: None,
                 package: "pytorch".to_string(),
                 build: None,
+                build_number: None,
                 version: Some(CompoundSelector::Single {
                     selector: Selector::GreaterThan,
                     version: "1.10.2".to_string(),
@@ -502,6 +530,7 @@ mod test {
                     second_selector: Selector::LessThan,
                     second_version: "3.0.0".to_string(),
                 }),
+                build_number: None,
                 key_value_pairs: Vec::new(),
             };
 
