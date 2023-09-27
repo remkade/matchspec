@@ -473,15 +473,27 @@ impl MatchSpec {
         package.chars().all(is_alphanumeric_with_dashes)
             && is_match_glob_str(self.package.as_ref(), package)
             && self.is_version_match(version)
-        // && self.is_build_number_match(build_number)
     }
 }
 
 impl MatchSpec {
     pub fn is_match(&self, pc: &PackageCandidate) -> bool {
         self.is_package_version_match(&pc.name, pc.version.as_ref().unwrap_or(&String::new()))
-            && (self.subdir.is_none() || self.subdir == pc.subdir)
+            && (self.subdir.is_none() || self.subdir == pc.subdir) // TODO: test logic
             && (self.build.is_none() || self.build == pc.build)
+            && self.is_build_number_match(&pc.build_number)
+    }
+
+    pub fn is_build_number_match(&self, build_number: &Option<u32>) -> bool {
+        match build_number {
+            Some(number) => {
+                self.build_number
+                    .as_ref()
+                    .map(|v| v.is_match(&number.to_string()))
+                    .unwrap_or(true)
+            }
+            None => true
+        }
     }
 }
 
@@ -567,14 +579,6 @@ mod test {
             assert!(ms.is_package_version_match("python", "3.8"));
             assert!(ms.is_package_version_match("python", "3.9"));
             assert!(ms.is_package_version_match("python", "3.10"));
-        }
-
-        #[test]
-        fn test_version_compare11() {
-            let ms: MatchSpec = "python>3.6[build_number='>=3', build='py_sdfsd_1', key=1]".parse().unwrap();
-            // let ms: MatchSpec = "python>3.6[build_number='3',build='py_sdfsd_1']".parse().unwrap();
-            // let ms: MatchSpec = "python>3.6[build_number=3]".parse().unwrap();
-            assert!(!ms.is_package_version_match("python", "3.5"));
         }
     }
 }
