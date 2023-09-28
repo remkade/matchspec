@@ -396,7 +396,7 @@ From<(
             key_value_pairs: Vec::new(),
         };
 
-        // Convert the key_value_pairs into (S, Selector, S) tuples.
+        // Convert the key_value_pairs into (S, CompoundSelector) tuples.
         // I'm not sure its possible to have the full selector set, but this models it in a
         // pretty good way.
         let key_value_pairs: Vec<(String, CompoundSelector<String>)> = keys.map(|vec| {
