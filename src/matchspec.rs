@@ -374,23 +374,6 @@ From<(
             Option<Vec<(&str, CompoundSelector<String>)>>,
         ),
     ) -> Self {
-        // Convert the key_value_pairs into (S, Selector, S) tuples.
-        // I'm not sure its possible to have the full selector set, but this models it in a
-        // pretty good way.
-        // let key_value_pairs: Vec<(String, CompoundSelector<String>)> = keys
-        //     .map(|vec: Vec<(&str, CompoundSelector<String>)>| {
-        //         vec.iter()
-        //             .map(|(key,  value)| {
-        //                 (
-        //                     String::from(*key),
-        //                     Selector::from(value.),
-        //                     String::from(*value.),
-        //                 )
-        //             })
-        //             .collect()
-        //     })
-        //     .unwrap_or_default();
-
         let namespace = if let Some(a) = ns {
             if a.is_empty() {
                 None
@@ -478,10 +461,12 @@ impl MatchSpec {
 
 impl MatchSpec {
     pub fn is_match(&self, pc: &PackageCandidate) -> bool {
+        let is_equal = |a: &Option<String>, b: &Option<String>| a.is_none() || a == b;
+
         self.is_package_version_match(&pc.name, pc.version.as_ref().unwrap_or(&String::new()))
-            && (self.subdir.is_none() || self.subdir == pc.subdir) // TODO: test logic
-            && (self.build.is_none() || self.build == pc.build)
             && self.is_build_number_match(&pc.build_number)
+            && is_equal(&self.subdir, &pc.subdir)
+            && is_equal(&self.build, &pc.build)
     }
 
     pub fn is_build_number_match(&self, build_number: &Option<u32>) -> bool {

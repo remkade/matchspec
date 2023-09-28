@@ -165,8 +165,16 @@ mod test {
                   "version": "3.10.4"
                 }"#;
             let candidate = PackageCandidate::from(payload);
-            let ms: MatchSpec = "python>3.6[build_number='2']".parse().unwrap();
+            let ms: MatchSpec = "python>3.6[build_number='1']".parse().unwrap();
             assert!(ms.is_match(&candidate));
+            let ms: MatchSpec = "python>3.6[build_number='>=1']".parse().unwrap();
+            assert!(ms.is_match(&candidate));
+            let ms: MatchSpec = "python>3.6[build_number=' >= 1 ']".parse().unwrap();
+            assert!(ms.is_match(&candidate));
+            let ms: MatchSpec = "python>3.6[build_number='42']".parse().unwrap();
+            assert!(!ms.is_match(&candidate));
+            let ms: MatchSpec = "main/linux-64::python>3.10".parse().unwrap();
+            assert!(ms.is_match(&candidate))
         }
     }
 }
