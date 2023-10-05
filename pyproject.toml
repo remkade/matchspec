@@ -10,7 +10,7 @@ authors = [{ name = "Kyle Leaders" }]
 license = { text = "BSD-3-Clause" }
 readme = "README.md"
 requires-python = ">=3.7"
-keywords = ["conda", "matchspec", "rust"]
+keywords = ["conda", "matching", "conda-matchspec", "rust"]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Developers",
