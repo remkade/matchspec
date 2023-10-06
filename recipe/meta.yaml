@@ -1,21 +1,22 @@
 package:
   name: rust_matchspec
-  version: 0.1.0
+  version: 0.2.1
 
 source:
   path: ../
 
 build:
   number: 0
-  skip: true #[py<37]
+  skip: true  #[py<37]
 
 requirements:
   build:
     - {{ compiler('rust') }}  # [not win]
-    - rust_win-64  # [win]
+    - rust_win-64             # [win]
   host:
     - python
-    - maturin <=14.0,<15.0
+    - pip
+    - maturin >=14.0,<15.0
   run:
     - python
 
@@ -29,6 +30,12 @@ test:
 
 about:
   home: https://github.com/remkade/matchspec
+  doc_url: https://github.com/remkade/matchspec
+  dev_url: https://github.com/remkade/matchspec
   license: BSD-3-Clause
+  license_family: BSD
   license_file: LICENSE
   summary: A conda matchspec written in Rust
+  description: |
+    A Conda MatchSpec implementation in pure Rust.
+    This allows you to parse a matchspec and validate it against a package to see if it matches.

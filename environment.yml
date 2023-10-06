@@ -4,5 +4,6 @@ channels:
   - defaults
 dependencies:
   - conda
+  - maturin
   - pytest
   - pytest-benchmark
