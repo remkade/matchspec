@@ -35,8 +35,8 @@ pub enum Selector {
 }
 
 impl<S> From<S> for Selector
-where
-    S: AsRef<str>,
+    where
+        S: AsRef<str>,
 {
     fn from(value: S) -> Self {
         match value.as_ref() {
@@ -89,8 +89,8 @@ impl Selector {
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CompoundSelector<S>
-where
-    S: Into<String> + AsRef<str>,
+    where
+        S: Into<String> + AsRef<str>,
 {
     Single {
         selector: Selector,
@@ -130,9 +130,9 @@ impl Default for CompoundSelector<String> {
 /// });
 /// ```
 impl<S, V> From<(S, V)> for CompoundSelector<String>
-where
-    S: Into<Selector>,
-    V: Into<String>,
+    where
+        S: Into<Selector>,
+        V: Into<String>,
 {
     fn from(input: (S, V)) -> Self {
         CompoundSelector::Single {
@@ -143,9 +143,9 @@ where
 }
 
 impl<S, V> From<((S, V), char, (S, V))> for CompoundSelector<String>
-where
-    S: Into<Selector>,
-    V: Into<String>,
+    where
+        S: Into<Selector>,
+        V: Into<String>,
 {
     fn from((one, boolean, two): ((S, V), char, (S, V))) -> Self {
         match boolean {
@@ -157,8 +157,8 @@ where
 }
 
 impl<S> CompoundSelector<S>
-where
-    S: AsRef<str> + PartialEq + Into<String>,
+    where
+        S: AsRef<str> + PartialEq + Into<String>,
 {
     /// This takes a versions and tests that it falls within the constraints of this CompoundSelector
     /// ```
@@ -239,9 +239,9 @@ where
 /// });
 /// ```
 impl<S, V> From<(S, V, V, S, V)> for CompoundSelector<String>
-where
-    S: Into<Selector>,
-    V: Into<String> + AsRef<str> + PartialEq + std::fmt::Display,
+    where
+        S: Into<Selector>,
+        V: Into<String> + AsRef<str> + PartialEq + std::fmt::Display,
 {
     fn from(
         (first_selector, first_version, joiner, second_selector, second_version): (S, V, V, S, V),
@@ -290,7 +290,8 @@ pub struct MatchSpec {
     pub package: String,
     pub version: Option<CompoundSelector<String>>,
     pub build: Option<String>,
-    pub key_value_pairs: Vec<(String, Selector, String)>,
+    pub build_number: Option<CompoundSelector<String>>,
+    pub key_value_pairs: Vec<(String, CompoundSelector<String>)>,
 }
 
 /// Custom implementation to make sure that we don't compare key_value_pairs
@@ -316,6 +317,7 @@ impl Default for MatchSpec {
             package: "*".to_string(),
             version: None,
             build: None,
+            build_number: None,
             key_value_pairs: Vec::new(),
         }
     }
@@ -346,20 +348,21 @@ impl From<(&str, Option<&str>, Option<&str>)> for MatchSpec {
                 version: s.into(),
             }),
             build: build.map(|s| s.into()),
+            build_number: None,
             key_value_pairs: Vec::new(),
         }
     }
 }
 
 impl
-    From<(
-        Option<&str>,
-        Option<&str>,
-        Option<&str>,
-        &str,
-        Option<CompoundSelector<String>>,
-        Option<Vec<(&str, &str, &str)>>,
-    )> for MatchSpec
+From<(
+    Option<&str>,
+    Option<&str>,
+    Option<&str>,
+    &str,
+    Option<CompoundSelector<String>>,
+    Option<Vec<(&str, CompoundSelector<String>)>>,
+)> for MatchSpec
 {
     fn from(
         (channel, subdir, ns, package, cs, keys): (
@@ -368,26 +371,9 @@ impl
             Option<&str>,
             &str,
             Option<CompoundSelector<String>>,
-            Option<Vec<(&str, &str, &str)>>,
+            Option<Vec<(&str, CompoundSelector<String>)>>,
         ),
     ) -> Self {
-        // Convert the key_value_pairs into (S, Selector, S) tuples.
-        // I'm not sure its possible to have the full selector set, but this models it in a
-        // pretty good way.
-        let key_value_pairs: Vec<(String, Selector, String)> = keys
-            .map(|vec: Vec<(&str, &str, &str)>| {
-                vec.iter()
-                    .map(|(key, selector, value)| {
-                        (
-                            String::from(*key),
-                            Selector::from(selector),
-                            String::from(*value),
-                        )
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-
         let namespace = if let Some(a) = ns {
             if a.is_empty() {
                 None
@@ -406,17 +392,29 @@ impl
             package: package.into(),
             version: cs,
             build: None,
+            build_number: None,
             key_value_pairs: Vec::new(),
         };
 
+        // Convert the key_value_pairs into (S, CompoundSelector) tuples.
+        // I'm not sure its possible to have the full selector set, but this models it in a
+        // pretty good way.
+        let key_value_pairs: Vec<(String, CompoundSelector<String>)> = keys.map(|vec| {
+            vec.iter().map(|(key, value)| {
+                (String::from(*key), value.clone())
+            }).collect()
+        }).unwrap_or_default();
+
         // Lets set the final attributes based on the key value pairs
         // Currently we only support EqualTo relations, but maybe in the future we can fix that.
-        for (key, selector, value) in &key_value_pairs {
-            match (key.as_ref(), selector, value) {
-                ("build", Selector::EqualTo, _) => ms.build = Some(value.clone()),
-                ("channel", Selector::EqualTo, _) => ms.channel = Some(value.clone()),
-                ("subdir", Selector::EqualTo, _) => ms.subdir = Some(value.clone()),
-                ("namepsace", Selector::EqualTo, _) => ms.namespace = Some(value.clone()),
+        for (key, compound_selector) in &key_value_pairs {
+            // TODO: here
+            match (key.as_ref(), compound_selector) {
+                ("build", CompoundSelector::Single { selector: Selector::EqualTo, version }) => ms.build = Some(version.clone()),
+                ("channel", CompoundSelector::Single { selector: Selector::EqualTo, version }) => ms.channel = Some(version.clone()),
+                ("subdir", CompoundSelector::Single { selector: Selector::EqualTo, version }) => ms.subdir = Some(version.clone()),
+                ("namepsace", CompoundSelector::Single { selector: Selector::EqualTo, version }) => ms.namespace = Some(version.clone()),
+                ("build_number", CompoundSelector::Single { selector: _, version: _ }) => ms.build_number = Some(compound_selector.clone()),
                 _ => (),
             }
         }
@@ -463,9 +461,24 @@ impl MatchSpec {
 
 impl MatchSpec {
     pub fn is_match(&self, pc: &PackageCandidate) -> bool {
+        let is_equal = |a: &Option<String>, b: &Option<String>| a.is_none() || a == b;
+
         self.is_package_version_match(&pc.name, pc.version.as_ref().unwrap_or(&String::new()))
-            && (self.subdir.is_none() || self.subdir == pc.subdir)
-            && (self.build.is_none() || self.build == pc.build)
+            && self.is_build_number_match(&pc.build_number)
+            && is_equal(&self.subdir, &pc.subdir)
+            && is_equal(&self.build, &pc.build)
+    }
+
+    pub fn is_build_number_match(&self, build_number: &Option<u32>) -> bool {
+        match build_number {
+            Some(number) => {
+                self.build_number
+                    .as_ref()
+                    .map(|v| v.is_match(&number.to_string()))
+                    .unwrap_or(true)
+            }
+            None => true
+        }
     }
 }
 

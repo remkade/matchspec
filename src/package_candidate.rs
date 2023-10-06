@@ -23,6 +23,7 @@ pub struct PackageCandidate {
 
 // These are safe to assume because Option, String, and u64 are all Send/Sync
 unsafe impl Send for PackageCandidate {}
+
 unsafe impl Sync for PackageCandidate {}
 
 impl From<&str> for PackageCandidate {
@@ -148,6 +149,32 @@ mod test {
 
             let ms: MatchSpec = "main/linux-64::python<3.10".parse().unwrap();
             assert!(!candidate.is_match(&ms))
+        }
+
+        #[test]
+        fn test_build_number() {
+            let payload = r#"{
+                  "build_number": 1,
+                  "license": "GPL",
+                  "md5": "md5xyz",
+                  "name": "python",
+                  "sha256": "sha256xyz",
+                  "size": 423273,
+                  "subdir": "linux-64",
+                  "timestamp": 1534356589107,
+                  "version": "3.10.4"
+                }"#;
+            let candidate = PackageCandidate::from(payload);
+            let ms: MatchSpec = "python>3.6[build_number='1']".parse().unwrap();
+            assert!(ms.is_match(&candidate));
+            let ms: MatchSpec = "python>3.6[build_number='>=1']".parse().unwrap();
+            assert!(ms.is_match(&candidate));
+            let ms: MatchSpec = "python>3.6[build_number=' >= 1 ']".parse().unwrap();
+            assert!(ms.is_match(&candidate));
+            let ms: MatchSpec = "python>3.6[build_number='42']".parse().unwrap();
+            assert!(!ms.is_match(&candidate));
+            let ms: MatchSpec = "main/linux-64::python>3.10".parse().unwrap();
+            assert!(ms.is_match(&candidate))
         }
     }
 }
