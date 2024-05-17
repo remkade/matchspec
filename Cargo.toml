@@ -20,6 +20,9 @@ rayon = "1.7"
 [dev-dependencies]
 criterion = "0.3"
 
+[build-dependencies]
+pyo3-build-config = "0.21"
+
 [features]
 default = ["python"]
 python = ["pyo3/extension-module"]
