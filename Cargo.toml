@@ -1,6 +1,6 @@
 [package]
 name = "matchspec"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 
 [lib]
@@ -19,6 +19,9 @@ rayon = "1.7"
 
 [dev-dependencies]
 criterion = "0.3"
+
+[build-dependencies]
+pyo3-build-config = "0.21"
 
 [features]
 default = ["python"]
